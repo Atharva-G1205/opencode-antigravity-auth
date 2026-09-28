@@ -20,6 +20,7 @@ import {
   isGenerativeLanguageRequest,
 } from "../plugin/request";
 import { OPENCODE_MODEL_DEFINITIONS } from "../plugin/config/models";
+import { updateOpencodeConfig } from "../plugin/config/updater";
 
 const log = createLogger("v2-adapter");
 
@@ -306,6 +307,30 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
           config.pid_offset_enabled,
           config.soft_quota_threshold_percent,
         );
+
+        if (!selectedAccount) {
+          const blockedReasons = accountManager.getAllBlockedReasons(family, modelName, "antigravity");
+          const reasonsFormatted = blockedReasons.map((r) => `• ${r.email}: ${r.reason}`).join("\n");
+          const minWaitMs = accountManager.getMinWaitTimeForFamily(family, modelName, "antigravity");
+          const waitTimeFormatted = minWaitMs > 0 ? `${Math.ceil(minWaitMs / 60000)}m` : "desconocido";
+
+          const userMessage =
+            `[Antigravity] Todas tus cuentas (${accountManager.getAccountCount()}) tienen la cuota agotada o bloqueada para ${family}.\n\n` +
+            `Detalle por cuenta:\n${reasonsFormatted}\n\n` +
+            `Sugerencias:\n` +
+            `1. Cambia temporalmente a otro modelo disponible (ej: google/antigravity-gemini-3.8-flash).\n` +
+            `2. Ejecuta /antigravity-quota o consulta antigravity_quota para revisar los reseteos.\n` +
+            `3. Agrega otra cuenta ejecutando 'opencode auth login' o espera el reseteo (~${waitTimeFormatted}).`;
+
+          log.warn(`[v2 routing] All accounts blocked for ${family}. Early terminating with structured error response.`);
+
+          // Intercept request to stop SessionRunner from hanging by returning synthetic response in http.response
+          pendingRequests.set(event.sessionID, {
+            blockedEarly: true,
+            userMessage,
+          });
+          return;
+        }
       }
 
       const activeIndex = selectedAccount ? selectedAccount.index : (storage.activeIndex ?? 0);
@@ -373,6 +398,28 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
     await context.session.hook("http.response", async (event: any) => {
       const prepared = pendingRequests.get(event.sessionID);
       if (!prepared) {
+        return;
+      }
+
+      if (prepared.blockedEarly) {
+        event.response = new Response(
+          JSON.stringify({
+            error: {
+              code: 429,
+              message: prepared.userMessage,
+              status: "RESOURCE_EXHAUSTED",
+            },
+          }),
+          {
+            status: 429,
+            statusText: "Too Many Requests",
+            headers: {
+              "content-type": "application/json",
+              "x-should-retry": "false",
+            },
+          },
+        );
+        pendingRequests.delete(event.sessionID);
         return;
       }
 
@@ -453,6 +500,17 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
           },
         );
         event.response = transformed;
+        // If Google returned 429/403 or quota exceeded, inject x-should-retry: true into transformed response
+        // so OpenCode SessionRunner invokes hook("retry") to rotate accounts instead of aborting the session
+        if (event.response && (event.response.status === 429 || event.response.status === 403)) {
+          const headers = new Headers(event.response.headers);
+          headers.set("x-should-retry", "true");
+          event.response = new Response(event.response.body, {
+            status: event.response.status,
+            statusText: event.response.statusText,
+            headers,
+          });
+        }
       } catch (error) {
         log.warn(`Response transform error in v2 adapter: ${error}`);
       } finally {
@@ -523,19 +581,48 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
     await context.model.transform((editor: any) => {
       for (const [modelId, def] of Object.entries(OPENCODE_MODEL_DEFINITIONS)) {
         try {
-          editor.update("google", modelId, (draft: any) => {
-            draft.name = def.name;
-            draft.limit = def.limit;
-            draft.status = "active";
-            if (def.variants) {
-              draft.variants = Object.entries(def.variants).map(([vId, vOpt]) => ({
-                id: vId,
-                ...vOpt,
-              }));
+          // If model already exists in editor (e.g. from opencode.json or base provider), update it
+          let updated = false;
+          if (typeof editor.update === "function") {
+            try {
+              editor.update("google", modelId, (draft: any) => {
+                draft.name = def.name;
+                draft.limit = def.limit;
+                draft.status = "active";
+                if (def.variants) {
+                  draft.variants = Object.entries(def.variants).map(([vId, vOpt]) => ({
+                    id: vId,
+                    ...vOpt,
+                  }));
+                }
+                updated = true;
+              });
+            } catch {
+              updated = false;
             }
-          });
+          }
+          // If not updated and editor.add is available, auto-register it directly
+          if (!updated && typeof editor.add === "function") {
+            try {
+              editor.add({
+                providerID: "google",
+                id: modelId,
+                name: def.name,
+                limit: def.limit,
+                status: "active",
+                variants: def.variants
+                  ? Object.entries(def.variants).map(([vId, vOpt]) => ({
+                      id: vId,
+                      ...vOpt,
+                    }))
+                  : undefined,
+              });
+            } catch {
+              // Ignore if provider structure differs
+            }
+          }
         } catch {
-          // Model might not be pre-seeded in current candidate list; safe to ignore
+          // Model might not be pre-seeded; safe to ignore
         }
       }
     });
