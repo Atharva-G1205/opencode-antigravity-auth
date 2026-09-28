@@ -502,6 +502,17 @@ export class AccountManager {
     markRateLimited(account, retryAfterMs, family, headerStyle = "antigravity", model) {
         const key = getQuotaKey(family, headerStyle, model);
         account.rateLimitResetTimes[key] = nowMs() + retryAfterMs;
+        // Keep internal accounts array in sync if account was a cloned snapshot
+        const target = this.accounts.find(a => a.index === account.index);
+        if (target && target !== account) {
+            target.rateLimitResetTimes[key] = account.rateLimitResetTimes[key];
+        }
+    }
+    markRateLimitedByIndex(accountIndex, retryAfterMs, family, headerStyle = "antigravity", model) {
+        const account = this.accounts.find(a => a.index === accountIndex);
+        if (account) {
+            this.markRateLimited(account, retryAfterMs, family, headerStyle, model);
+        }
     }
     /**
      * Mark an account as used after a successful API request.

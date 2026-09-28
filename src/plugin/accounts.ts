@@ -680,6 +680,24 @@ export class AccountManager {
   ): void {
     const key = getQuotaKey(family, headerStyle, model);
     account.rateLimitResetTimes[key] = nowMs() + retryAfterMs;
+    // Keep internal accounts array in sync if account was a cloned snapshot
+    const target = this.accounts.find(a => a.index === account.index);
+    if (target && target !== account) {
+      target.rateLimitResetTimes[key] = account.rateLimitResetTimes[key];
+    }
+  }
+
+  markRateLimitedByIndex(
+    accountIndex: number,
+    retryAfterMs: number,
+    family: ModelFamily,
+    headerStyle: HeaderStyle = "antigravity",
+    model?: string | null
+  ): void {
+    const account = this.accounts.find(a => a.index === accountIndex);
+    if (account) {
+      this.markRateLimited(account, retryAfterMs, family, headerStyle, model);
+    }
   }
 
   /**

@@ -118,15 +118,18 @@ async function refreshQuotaCacheForFamily(manager: AccountManager, family: Model
 
       for (const [key, m] of Object.entries(r.models)) {
         const qi = m?.quotaInfo;
-        if (!qi || typeof qi.remainingFraction !== "number") continue;
-        const frac = Math.max(0, Math.min(1, qi.remainingFraction));
+        if (!qi) continue;
+        const frac = typeof qi.remainingFraction === "number" ? Math.max(0, Math.min(1, qi.remainingFraction)) : NaN;
         const label = (m.displayName || key || "").toLowerCase();
         if (label.includes("claude")) {
-          if (frac < minClaude) { minClaude = frac; resetClaude = qi.resetTime; }
+          // Claude models in Antigravity RPC frequently omit remainingFraction when exhausted or subject to weekly bucket.
+          // If remainingFraction is numeric, use it. Otherwise, if resetTime is present, remainingFraction is exhausted (0).
+          const claudeFrac = Number.isFinite(frac) ? frac : (qi.resetTime ? 0 : 1);
+          if (claudeFrac < minClaude) { minClaude = claudeFrac; resetClaude = qi.resetTime; }
         } else if (label.includes("flash")) {
-          if (frac < minFlash) { minFlash = frac; resetFlash = qi.resetTime; }
+          if (Number.isFinite(frac) && frac < minFlash) { minFlash = frac; resetFlash = qi.resetTime; }
         } else if (label.includes("pro")) {
-          if (frac < minPro) { minPro = frac; resetPro = qi.resetTime; }
+          if (Number.isFinite(frac) && frac < minPro) { minPro = frac; resetPro = qi.resetTime; }
         }
       }
 
@@ -373,14 +376,41 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
         return;
       }
 
-      // Mark account as used on response arrival
+      // Mark account as used or rate-limited on response arrival
       const meta = pendingFamily.get(event.sessionID);
-      if (meta !== undefined && event.response?.ok) {
+      const isRateLimitedOrQuota = event.response && (event.response.status === 429 || event.response.status === 403);
+      if (meta !== undefined) {
         try {
           const mgr = await getSharedAccountManager();
-          mgr.markAccountUsed(meta.accountIndex);
-        } catch {
-          // ignore
+          if (event.response?.ok) {
+            mgr.markAccountUsed(meta.accountIndex);
+          } else if (isRateLimitedOrQuota) {
+            // Immediately mark failed account as limited in shared AccountManager & disk cache
+            mgr.markRateLimitedByIndex(meta.accountIndex, 60_000, meta.family, "antigravity");
+            // Set cached quota remainingFraction for this family to 0 so next prompt won't reuse it
+            const familyGroup: QuotaGroup = meta.family === "claude" ? "claude" : "gemini-flash";
+            mgr.updateQuotaCache(meta.accountIndex, {
+              [familyGroup]: { remainingFraction: 0, resetTime: new Date(Date.now() + 3600_000).toISOString() }
+            });
+            // Advance activeIndex immediately in storage
+            const storage = await loadAccounts();
+            if (storage && storage.accounts.length > 1) {
+              const nextIdx = (meta.accountIndex + 1) % storage.accounts.length;
+              storage.activeIndex = nextIdx;
+              const failedAccount = storage.accounts[meta.accountIndex];
+              if (failedAccount) {
+                failedAccount.cachedQuota = {
+                  ...failedAccount.cachedQuota,
+                  [familyGroup]: { remainingFraction: 0, resetTime: new Date(Date.now() + 3600_000).toISOString() }
+                };
+                failedAccount.cachedQuotaUpdatedAt = Date.now();
+              }
+              await saveAccounts(storage).catch(() => {});
+              log.warn(`[v2 routing] Account idx=${meta.accountIndex} encountered status=${event.response.status}. Switched activeIndex -> ${nextIdx}`);
+            }
+          }
+        } catch (e) {
+          log.warn(`[v2 routing] Error handling response arrival accounting: ${e}`);
         }
       }
 
@@ -427,7 +457,10 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
         log.warn(`Response transform error in v2 adapter: ${error}`);
       } finally {
         pendingRequests.delete(event.sessionID);
-        pendingFamily.delete(event.sessionID);
+        // Only delete pendingFamily if request succeeded; keep it if failed so hook("retry") can inspect it
+        if (event.response?.ok) {
+          pendingFamily.delete(event.sessionID);
+        }
       }
     });
 
@@ -445,12 +478,14 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
         message.includes("eof") ||
         message.includes("quota exceeded");
 
+      const meta = pendingFamily.get(event.sessionID);
+      pendingFamily.delete(event.sessionID);
+
       if (!isRotatable) return;
 
       const storage = await loadAccounts();
       if (!storage || storage.accounts.length <= 1) return;
 
-      const meta = pendingFamily.get(event.sessionID);
       const family: ModelFamily = meta?.family ?? "claude";
       const prevIndex = meta?.accountIndex ?? storage.activeIndex ?? 0;
       const nextIndex = (prevIndex + 1) % storage.accounts.length;
@@ -462,10 +497,9 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
         // Advance the shared manager's cursor for this family so the next
         // request for the same model family lands on the healthy account.
         const mgr = await getSharedAccountManager();
-        const prevAcc = mgr.getAccountsSnapshot()[prevIndex];
-        if (prevAcc && (status === 429 || status === 403)) {
+        if (status === 429 || status === 403) {
           // Put the failed account on a temporary cooldown for this family
-          mgr.markRateLimited(prevAcc, 60_000, family, "antigravity");
+          mgr.markRateLimitedByIndex(prevIndex, 60_000, family, "antigravity");
         }
         mgr.getCurrentOrNextForFamily(
           family,
