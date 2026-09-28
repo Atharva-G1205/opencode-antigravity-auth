@@ -136,23 +136,32 @@ Then in `~/.config/opencode/opencode.json`:
 
 ---
 
-## Quick Start
+## Quick Start (Zero-Config in OpenCode v2)
 
-1. **Login** with your Google account:
+1. **Add the plugin** to `~/.config/opencode/opencode.json`:
+
+   ```json
+   {
+     "plugins": ["github:JoshRob297/opencode-antigravity-auth"]
+   }
+   ```
+
+2. **Authenticate with Google:**
 
    ```bash
    opencode auth login
    ```
+   Select **Google → OAuth with Google (Antigravity)**.
+   *(In SSH / Headless environments, the CLI automatically provides a direct URL to open on your browser and paste the verification code).*
 
-2. **Select Google → OAuth with Google (Antigravity)** and authenticate.
-
-3. **Configure models** in `opencode.json` (see copy-paste configuration below).
-
-4. **Run a prompt:**
+3. **Ready to use!** 
+   In OpenCode v2, **all models, variants, and thinking budgets are auto-registered dynamically**. You can immediately run:
 
    ```bash
-   opencode run "Hello" --model=google/antigravity-gemini-3.7-flash --variant=high
+   opencode run "Hello" --model=google/antigravity-gemini-3.8-flash --variant=high
    ```
+
+   *(Optional: You can run `/antigravity-setup` inside OpenCode anytime to cleanly auto-format your `opencode.json` with recommended whitelists).*
 
 ---
 
@@ -161,21 +170,21 @@ Then in `~/.config/opencode/opencode.json`:
 ### Model Reference
 
 | Model | Variants | Description |
-|-------|----------|-------------|
-| `antigravity-gemini-3.8-flash` 🆕 | `low`, `medium`, `high` | **Gemini 3.8 Flash** with thinking tiers *(New in v1.9.0)* |
-| `antigravity-gemini-3.7-flash` 🚀 | `low`, `medium`, `high` | **Gemini 3.7 Flash** with dynamic thinking *(New in v1.7.0)* |
+|---|---|---|
+| `antigravity-gemini-3.8-flash` 🆕 | `low`, `medium`, `high` | **Gemini 3.8 Flash** with thinking tiers *(Default)* |
+| `antigravity-gemini-3.7-flash` 🚀 | `low`, `medium`, `high` | **Gemini 3.7 Flash** with dynamic thinking |
 | `antigravity-gemini-3.6-flash` ⚡ | `low`, `medium`, `high` | **Gemini 3.6 Flash** with thinking tiers |
 | `antigravity-gemini-3.1-pro` 🧠 | `low`, `high` | **Gemini 3.1 Pro** with 1M token context |
-| `antigravity-claude-sonnet-4-6` | — | Claude Sonnet 4.6 |
-| `antigravity-claude-opus-4-6-thinking` | `low`, `medium`, `max` | Claude Opus 4.6 with extended thinking |
-| `antigravity-gpt-oss-120b-medium` | — | GPT-OSS 120B open-source model *(New in v2.0.0)* |
+| `antigravity-claude-sonnet-4-6` | `low`, `medium`, `high`, `max` | Claude Sonnet 4.6 |
+| `antigravity-claude-opus-4-6-thinking` | `low`, `medium`, `high`, `max` | Claude Opus 4.6 with extended thinking |
+| `antigravity-gpt-oss-120b-medium` | `low`, `medium`, `high` | GPT-OSS 120B open-source model |
 
 ---
 
-<details open>
-<summary><b>Full models configuration (copy-paste ready)</b></summary>
+<details>
+<summary><b>Manual models configuration (Optional / Advanced)</b></summary>
 
-Add this to your `~/.config/opencode/opencode.json`:
+In OpenCode v2 this is **not required** because the plugin registers all models and variants automatically via `model.transform`. However, if you wish to pin custom token limits or override model names manually, you can add this to `~/.config/opencode/opencode.json`:
 
 ```json
 {

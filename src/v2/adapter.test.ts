@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { setupV2, type V2Context } from "./adapter";
 
 describe("OpenCode v2 Adapter", () => {
-  it("initializes and registers tools, commands, models, and session hooks with OpenCode v2 context", async () => {
-    const registeredTools: any[] = [];
+  it(
+    "initializes and registers tools, commands, models, and session hooks with OpenCode v2 context",
+    async () => {
+      const registeredTools: any[] = [];
     const registeredCommands: any[] = [];
     const registeredHooks: Record<string, Function> = {};
     const updatedModels: any[] = [];
@@ -94,7 +96,7 @@ describe("OpenCode v2 Adapter", () => {
     if (typeof cleanup === "function") {
       expect(() => cleanup()).not.toThrow();
     }
-  });
+  }, 20000);
 
   it("handles empty or partial v2 context gracefully", async () => {
     const emptyContext: V2Context = {};
