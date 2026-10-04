@@ -10,6 +10,7 @@
 - **Access Token Caching in V2 Adapter:** Replaced redundant Google OAuth round-trips with shared in-memory token cache (`getAccessToken` via `resolveCachedAuth`), eliminating unnecessary token refreshes on every model call.
 - **Build Artifacts & Distribution Packaging (Closes #26):** Tracked `dist/src/plugin/stats.*` and `dist/src/v2/adapter.*` in git, unignored `dist` in `.gitignore`, and added CI sync guard ensuring committed `dist/` matches `src/`.
 - **Clean UI Compliance:** Purged residual emojis from error/status logs across the plugin core, CLI scripts, documentation, and GitHub templates.
+- **Dependency Security:** Bumped transitive `hono` (via `@openauthjs/openauth`) to a patched release, clearing all `npm audit` advisories.
 
 ### Changed
 
