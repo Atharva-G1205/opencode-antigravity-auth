@@ -8,6 +8,7 @@ import type {
 import { processImageData } from '../../image-saver';
 
 export const CLEAN_GUARDRAIL_MESSAGE = "[Solicitud bloqueada por filtros de seguridad de Gemini. Por favor, intenta reformular tu prompt o enfoque.]";
+export const CLEAN_MALFORMED_CALL_MESSAGE = "[Llamada de herramienta vacía o malformada generada por el modelo. Reintentando o reformula tu solicitud.]";
 
 /**
  * Checks if a text is the generic verbose Gemini filter blocking message
@@ -26,7 +27,8 @@ export function sanitizeGuardrailText(text: string): string {
 
 /**
  * Replaces verbose Google safety filter messages in response candidates
- * with a concise rephrasing invitation.
+ * with a concise rephrasing invitation. Also handles MALFORMED_FUNCTION_CALL
+ * finishReason by rewriting to STOP with explanatory content to avoid hard session crash.
  */
 export function sanitizeGuardrailMessage(response: unknown): unknown {
   if (!response || typeof response !== "object") return response;
@@ -40,6 +42,26 @@ export function sanitizeGuardrailMessage(response: unknown): unknown {
       if (cand.finishReason === "SAFETY") {
         if (!cand.content || typeof cand.content !== "object") {
           cand.content = { parts: [{ text: CLEAN_GUARDRAIL_MESSAGE }], role: "model" };
+        }
+      }
+
+      if (cand.finishReason === "MALFORMED_FUNCTION_CALL") {
+        cand.finishReason = "STOP";
+        if (cand.finishMessage) {
+          delete cand.finishMessage;
+        }
+        if (!cand.content || typeof cand.content !== "object") {
+          cand.content = { parts: [{ text: CLEAN_MALFORMED_CALL_MESSAGE }], role: "model" };
+        } else {
+          const content = cand.content as Record<string, unknown>;
+          if (!Array.isArray(content.parts) || content.parts.length === 0) {
+            content.parts = [{ text: CLEAN_MALFORMED_CALL_MESSAGE }];
+          } else {
+            const hasText = content.parts.some((p: any) => p && typeof p === "object" && typeof p.text === "string" && p.text.trim().length > 0);
+            if (!hasText) {
+              content.parts.push({ text: CLEAN_MALFORMED_CALL_MESSAGE });
+            }
+          }
         }
       }
 

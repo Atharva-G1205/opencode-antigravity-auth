@@ -201,4 +201,29 @@ describe("Guardrail / Safety Filter Sanitization", () => {
     const sanitized = sanitizeGuardrailMessage(rawResponse) as any;
     expect(sanitized.candidates[0].content.parts[0].text).toBe(CLEAN_GUARDRAIL_MESSAGE);
   });
+
+  it("handles finishReason: MALFORMED_FUNCTION_CALL by converting to STOP and inserting clean message", () => {
+    const rawResponse = {
+      candidates: [
+        {
+          finishReason: "MALFORMED_FUNCTION_CALL",
+          finishMessage: "Malformed function call: Failed to parse function call",
+          content: {
+            role: "model",
+            parts: [
+              {
+                thoughtSignature: "sig123",
+                text: "",
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const sanitized = sanitizeGuardrailMessage(rawResponse) as any;
+    expect(sanitized.candidates[0].finishReason).toBe("STOP");
+    expect(sanitized.candidates[0].finishMessage).toBeUndefined();
+    expect(sanitized.candidates[0].content.parts.some((p: any) => p.text.includes("malformada"))).toBe(true);
+  });
 });

@@ -1,5 +1,6 @@
 import type { SignatureStore, StreamingCallbacks, StreamingOptions, ThoughtBuffer } from './types';
 export declare const CLEAN_GUARDRAIL_MESSAGE = "[Solicitud bloqueada por filtros de seguridad de Gemini. Por favor, intenta reformular tu prompt o enfoque.]";
+export declare const CLEAN_MALFORMED_CALL_MESSAGE = "[Llamada de herramienta vac\u00EDa o malformada generada por el modelo. Reintentando o reformula tu solicitud.]";
 /**
  * Checks if a text is the generic verbose Gemini filter blocking message
  * and replaces it with a clean, concise prompt rephrase invitation.
@@ -7,7 +8,8 @@ export declare const CLEAN_GUARDRAIL_MESSAGE = "[Solicitud bloqueada por filtros
 export declare function sanitizeGuardrailText(text: string): string;
 /**
  * Replaces verbose Google safety filter messages in response candidates
- * with a concise rephrasing invitation.
+ * with a concise rephrasing invitation. Also handles MALFORMED_FUNCTION_CALL
+ * finishReason by rewriting to STOP with explanatory content to avoid hard session crash.
  */
 export declare function sanitizeGuardrailMessage(response: unknown): unknown;
 export declare function createThoughtBuffer(): ThoughtBuffer;
