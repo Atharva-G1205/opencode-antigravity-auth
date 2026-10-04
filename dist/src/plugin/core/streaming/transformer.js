@@ -3,9 +3,23 @@ export const CLEAN_GUARDRAIL_MESSAGE = "[Solicitud bloqueada por filtros de segu
 export const CLEAN_MALFORMED_CALL_MESSAGE = "[Llamada de herramienta vacía o malformada generada por el modelo. Reintentando o reformula tu solicitud.]";
 export const LOOP_DETECTED_MALFORMED_MESSAGE = "[Bucle de llamadas malformadas consecutivas detectado. La solicitud ha sido detenida para evitar bucle infinito. Por favor reformula tu prompt.]";
 const MAX_CONSECUTIVE_MALFORMED = 3;
+const MAX_TRACKED_SESSIONS = 512;
 const consecutiveMalformedBySession = new Map();
-export function resetMalformedStreak(sessionKey) {
-    consecutiveMalformedBySession.delete(sessionKey);
+/**
+ * Records a malformed-call occurrence for a session and returns the current
+ * consecutive streak. Bounds the tracking map so long-lived processes do not
+ * accumulate stale session keys.
+ */
+function bumpMalformedStreak(sessionKey) {
+    const streak = (consecutiveMalformedBySession.get(sessionKey) ?? 0) + 1;
+    consecutiveMalformedBySession.set(sessionKey, streak);
+    if (consecutiveMalformedBySession.size > MAX_TRACKED_SESSIONS) {
+        const oldest = consecutiveMalformedBySession.keys().next().value;
+        if (oldest !== undefined) {
+            consecutiveMalformedBySession.delete(oldest);
+        }
+    }
+    return streak;
 }
 /**
  * Checks if a text is the generic verbose Gemini filter blocking message
@@ -41,8 +55,7 @@ export function sanitizeGuardrailMessage(response, sessionKey) {
             if (cand.finishReason === "MALFORMED_FUNCTION_CALL") {
                 let msg = CLEAN_MALFORMED_CALL_MESSAGE;
                 if (sessionKey) {
-                    const streak = (consecutiveMalformedBySession.get(sessionKey) ?? 0) + 1;
-                    consecutiveMalformedBySession.set(sessionKey, streak);
+                    const streak = bumpMalformedStreak(sessionKey);
                     if (streak >= MAX_CONSECUTIVE_MALFORMED) {
                         msg = LOOP_DETECTED_MALFORMED_MESSAGE;
                     }
@@ -56,17 +69,32 @@ export function sanitizeGuardrailMessage(response, sessionKey) {
                 }
                 else {
                     const content = cand.content;
-                    if (!Array.isArray(content.parts) || content.parts.length === 0) {
-                        content.parts = [{ text: msg }];
+                    const parts = Array.isArray(content.parts) ? content.parts : [];
+                    const isTextPart = (p) => p && typeof p === "object" && typeof p.text === "string";
+                    const hasText = parts.some((p) => isTextPart(p) && p.text.trim().length > 0);
+                    if (!hasText) {
+                        // Append the clean message while preserving any non-text parts
+                        // (e.g. thoughtSignature) so signature continuity is not broken.
+                        content.parts = [...parts, { text: msg }];
                     }
-                    else {
-                        const hasText = content.parts.some((p) => p && typeof p === "object" && typeof p.text === "string" && p.text.trim().length > 0);
-                        if (!hasText) {
-                            content.parts.push({ text: msg });
+                    else if (msg === LOOP_DETECTED_MALFORMED_MESSAGE) {
+                        // Drop stale textual content, but keep any non-text metadata such as
+                        // thoughtSignature so the next turn still has signature continuity.
+                        const kept = [];
+                        for (const p of parts) {
+                            if (!p || typeof p !== "object")
+                                continue;
+                            if (typeof p.text === "string") {
+                                const rest = { ...p };
+                                delete rest.text;
+                                if (Object.keys(rest).length > 0)
+                                    kept.push(rest);
+                            }
+                            else {
+                                kept.push(p);
+                            }
                         }
-                        else if (msg === LOOP_DETECTED_MALFORMED_MESSAGE) {
-                            content.parts = [{ text: msg }];
-                        }
+                        content.parts = [...kept, { text: msg }];
                     }
                 }
             }

@@ -23,9 +23,9 @@ Antigravity is Google's **Unified Gateway API** for accessing multiple AI models
 
 | Environment | URL | Status |
 |-------------|-----|--------|
-| **Daily (Sandbox)** | `https://daily-cloudcode-pa.sandbox.googleapis.com` | ✅ Active |
-| **Production** | `https://cloudcode-pa.googleapis.com` | ✅ Active |
-| **Autopush (Sandbox)** | `https://autopush-cloudcode-pa.sandbox.googleapis.com` | ❌ Unavailable |
+| **Daily (Sandbox)** | `https://daily-cloudcode-pa.sandbox.googleapis.com` | Active |
+| **Production** | `https://cloudcode-pa.googleapis.com` | Active |
+| **Autopush (Sandbox)** | `https://autopush-cloudcode-pa.sandbox.googleapis.com` | Unavailable |
 
 ### API Actions
 
@@ -78,11 +78,11 @@ Accept: text/event-stream
 
 | Model Name | Model ID | Type | Status |
 |------------|----------|------|--------|
-| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Anthropic | ✅ Verified |
-| Claude Opus 4.6 Thinking | `claude-opus-4-6-thinking` | Anthropic | ✅ Verified |
-| Gemini 3 Pro High | `gemini-3-pro-high` | Google | ✅ Verified |
-| Gemini 3 Pro Low | `gemini-3-pro-low` | Google | ✅ Verified |
-| GPT-OSS 120B Medium | `gpt-oss-120b-medium` | Other | ✅ Verified |
+| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Anthropic | Verified |
+| Claude Opus 4.6 Thinking | `claude-opus-4-6-thinking` | Anthropic | Verified |
+| Gemini 3 Pro High | `gemini-3-pro-high` | Google | Verified |
+| Gemini 3 Pro Low | `gemini-3-pro-low` | Google | Verified |
+| GPT-OSS 120B Medium | `gpt-oss-120b-medium` | Other | Verified |
 
 ---
 
@@ -107,7 +107,7 @@ Accept: text/event-stream
 
 ### Contents Array (REQUIRED)
 
-**⚠️ IMPORTANT: Must use Gemini-style format. Anthropic-style `messages` array is NOT supported.**
+**IMPORTANT: Must use Gemini-style format. Anthropic-style `messages` array is NOT supported.**
 
 ```json
 {
@@ -161,10 +161,10 @@ Accept: text/event-stream
 
 ### System Instructions
 
-**⚠️ Must be an object with `parts`, NOT a plain string.**
+**Must be an object with `parts`, NOT a plain string.**
 
 ```json
-// ✅ CORRECT
+// CORRECT
 {
   "systemInstruction": {
     "parts": [
@@ -173,7 +173,7 @@ Accept: text/event-stream
   }
 }
 
-// ❌ WRONG - Will return 400 error
+// WRONG - Will return 400 error
 {
   "systemInstruction": "You are a helpful assistant."
 }
@@ -221,9 +221,9 @@ The model can call `google_search(query, urls?, thinking?)` which:
 **Tool Parameters:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `query` | string | ✅ | The search query or question |
-| `urls` | string[] | ❌ | URLs to analyze (adds `urlContext` tool) |
-| `thinking` | boolean | ❌ | Enable deep thinking (default: true) |
+| `query` | string | | The search query or question |
+| `urls` | string[] | | URLs to analyze (adds `urlContext` tool) |
+| `thinking` | boolean | | Enable deep thinking (default: true) |
 
 **Example Response:**
 ```markdown
@@ -293,46 +293,46 @@ The underlying API uses these tool formats:
 | Not allowed | Slashes (`/`), spaces, other special characters |
 
 **Examples:**
-- ✅ `get_weather` - Valid
-- ✅ `mcp:mongodb.query` - Valid (colons and dots allowed)
-- ✅ `read-file` - Valid (dashes allowed)
-- ❌ `mcp/query` - Invalid (slashes not allowed)
-- ❌ `123_tool` - Invalid (must start with letter or underscore)
+- `get_weather` - Valid
+- `mcp:mongodb.query` - Valid (colons and dots allowed)
+- `read-file` - Valid (dashes allowed)
+- `mcp/query` - Invalid (slashes not allowed)
+- `123_tool` - Invalid (must start with letter or underscore)
 
 ### JSON Schema Support
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `type` | ✅ Supported | `object`, `string`, `number`, `integer`, `boolean`, `array` |
-| `properties` | ✅ Supported | Object properties |
-| `required` | ✅ Supported | Required fields array |
-| `description` | ✅ Supported | Field descriptions |
-| `enum` | ✅ Supported | Enumerated values |
-| `items` | ✅ Supported | Array item schema |
-| `anyOf` | ✅ Supported | Converted to `any_of` internally |
-| `allOf` | ✅ Supported | Converted to `all_of` internally |
-| `oneOf` | ✅ Supported | Converted to `one_of` internally |
-| `additionalProperties` | ✅ Supported | Additional properties schema |
-| `const` | ❌ NOT Supported | Use `enum: [value]` instead |
-| `$ref` | ❌ NOT Supported | Inline the schema instead |
-| `$defs` / `definitions` | ❌ NOT Supported | Inline definitions instead |
-| `$schema` | ❌ NOT Supported | Strip from schema |
-| `$id` | ❌ NOT Supported | Strip from schema |
-| `default` | ❌ NOT Supported | Strip from schema |
-| `examples` | ❌ NOT Supported | Strip from schema |
-| `title` (nested) | ⚠️ Caution | May cause issues in nested objects |
+| `type` | Supported | `object`, `string`, `number`, `integer`, `boolean`, `array` |
+| `properties` | Supported | Object properties |
+| `required` | Supported | Required fields array |
+| `description` | Supported | Field descriptions |
+| `enum` | Supported | Enumerated values |
+| `items` | Supported | Array item schema |
+| `anyOf` | Supported | Converted to `any_of` internally |
+| `allOf` | Supported | Converted to `all_of` internally |
+| `oneOf` | Supported | Converted to `one_of` internally |
+| `additionalProperties` | Supported | Additional properties schema |
+| `const` | NOT Supported | Use `enum: [value]` instead |
+| `$ref` | NOT Supported | Inline the schema instead |
+| `$defs` / `definitions` | NOT Supported | Inline definitions instead |
+| `$schema` | NOT Supported | Strip from schema |
+| `$id` | NOT Supported | Strip from schema |
+| `default` | NOT Supported | Strip from schema |
+| `examples` | NOT Supported | Strip from schema |
+| `title` (nested) | Caution | May cause issues in nested objects |
 
-**⚠️ IMPORTANT:** The following features will cause a 400 error if sent to the API:
+**IMPORTANT:** The following features will cause a 400 error if sent to the API:
 - `const` - Convert to `enum: [value]` instead
 - `$ref` / `$defs` - Inline the schema definitions
 - `$schema` / `$id` - Strip these metadata fields
 - `default` / `examples` - Strip these documentation fields
 
 ```json
-// ❌ WRONG - Will return 400 error
+// WRONG - Will return 400 error
 { "type": { "const": "email" } }
 
-// ✅ CORRECT - Use enum instead
+// CORRECT - Use enum instead
 { "type": { "enum": ["email"] } }
 ```
 
@@ -469,7 +469,7 @@ For thinking-capable models (`*-thinking`), use:
 }
 ```
 
-**⚠️ IMPORTANT: `maxOutputTokens` must be GREATER than `thinkingBudget`**
+**IMPORTANT: `maxOutputTokens` must be GREATER than `thinkingBudget`**
 
 ### Thinking Response (Gemini)
 

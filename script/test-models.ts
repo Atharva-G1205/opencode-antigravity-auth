@@ -116,7 +116,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(`\n🧪 E2E Model Tests (${tests.length} models)\n${"=".repeat(50)}\n`);
+  console.log(`\nE2E Model Tests (${tests.length} models)\n${"=".repeat(50)}\n`);
 
   if (dryRun) {
     for (const t of tests) {
@@ -135,10 +135,10 @@ async function main(): Promise<void> {
     const result = await testModel(t.model, timeout);
 
     if (result.success) {
-      console.log(`✅ (${(result.duration / 1000).toFixed(1)}s)`);
+      console.log(`(${(result.duration / 1000).toFixed(1)}s)`);
       passed++;
     } else {
-      console.log(`❌ FAIL`);
+      console.log(`FAIL`);
       console.log(`   ${result.error}`);
       failures.push({ model: t.model, error: result.error || "Unknown" });
       failed++;

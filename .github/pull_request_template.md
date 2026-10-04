@@ -4,12 +4,12 @@
 
 ## Type of Change
 
-- [ ] 🐛 Bug fix (non-breaking change fixing an issue)
-- [ ] ✨ New feature (non-breaking change adding functionality)
-- [ ] ⚡ Performance improvement
-- [ ] 🧹 Refactoring / code cleanup
-- [ ] 📖 Documentation update
-- [ ] 🧪 Tests / CI improvement
+- [ ] Bug fix (non-breaking change fixing an issue)
+- [ ] New feature (non-breaking change adding functionality)
+- [ ] Performance improvement
+- [ ] Refactoring / code cleanup
+- [ ] Documentation update
+- [ ] Tests / CI improvement
 
 ## Checklist
 

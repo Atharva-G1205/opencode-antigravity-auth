@@ -20,28 +20,28 @@
 - **Model Addition: `antigravity-gpt-oss-120b-medium`**: Integrated Antigravity's native 120B open-source model into `OPENCODE_MODEL_DEFINITIONS` with 131k context window and multi-account routing support.
 - **Official Antigravity CLI v1.2.7 Signature Parity**: Synchronized client signature headers and User-Agent to `antigravity/cli/1.2.7 (aidev_client; os_type=linux; arch=amd64; cl=962369648; auth_method=consumer)`, matching the latest Google Antigravity binary release.
 - **OPSEC Safety Shield & Telemetry (`safety_shield`)**: Intercepts Google Gemini's `safetyRatings` in real-time. Emits UI warnings on high-risk classifications and automatically executes **preventive account rotation** (`Account Shield`) after consecutive triggers to disperse suspicious telemetry across your account pool.
-- 🔑 **Strip `x-goog-api-key` Header (Fix 400 `API_KEY_INVALID`)**: OpenCode automatically injects an AI Studio key into `x-goog-api-key` when intercepting `generativelanguage.googleapis.com` calls. Antigravity backend prioritized this header over `Bearer` auth, returning `400 API_KEY_INVALID`. The header is now stripped alongside `x-api-key`.
-- 🚫 **Legacy `gemini-cli` Mode Removed (Definitive 403 `#3501` Fix)**: Completely stripped legacy VS Code headers and `-preview` model fallbacks. All requests route cleanly through official Antigravity CLI signatures (`aidev_client`), eliminating false license errors across all accounts.
-- 🛡️ **Configurable Safety Settings (`safety_level`)**: Uses Google's native moderation baseline by default (`medium` / `BLOCK_MEDIUM_AND_ABOVE`) to protect accounts, with configurable options for `high` and `none` (with explicit disclaimer).
-- 🛠️ **Fixed 403 `#3501` (`SUBSCRIPTION_REQUIRED`) on Flash**: Removed decommissioned sandbox `autopush` endpoint from fallbacks so all requests route cleanly to live `daily` and `prod` endpoints.
-- 🚫 **Deprecated Gemini 3.5 Flash Removed**: Fully removed `antigravity-gemini-3.5-flash` following Google's backend sunset, keeping only active models (Gemini 3.8 Flash, 3.7 Flash, 3.6 Flash, 3.1 Pro, and Claude 4.6).
-- 🎯 **Clean Install Model Whitelisting**: Automatically injects a strict `provider.google.whitelist` in `opencode.json` on clean setup, hiding 18+ unauthenticated built-in Google AI Studio/Vertex models from the OpenCode model selector.
-- 🔄 **In-Flight 403 `#3501` (`SUBSCRIPTION_REQUIRED`) Auto-Recovery**: Intercepts project resolution failures and immediately provisions/links the companion project via `onboardManagedProject` without crashing the active agent session.
-- ⚡ **Auto-Update Commands**: Includes `/antigravity-update` slash command and CLI updater (`antigravity-update`) for one-click plugin updates.
+- **Strip `x-goog-api-key` Header (Fix 400 `API_KEY_INVALID`)**: OpenCode automatically injects an AI Studio key into `x-goog-api-key` when intercepting `generativelanguage.googleapis.com` calls. Antigravity backend prioritized this header over `Bearer` auth, returning `400 API_KEY_INVALID`. The header is now stripped alongside `x-api-key`.
+- **Legacy `gemini-cli` Mode Removed (Definitive 403 `#3501` Fix)**: Completely stripped legacy VS Code headers and `-preview` model fallbacks. All requests route cleanly through official Antigravity CLI signatures (`aidev_client`), eliminating false license errors across all accounts.
+- **Configurable Safety Settings (`safety_level`)**: Uses Google's native moderation baseline by default (`medium` / `BLOCK_MEDIUM_AND_ABOVE`) to protect accounts, with configurable options for `high` and `none` (with explicit disclaimer).
+- **Fixed 403 `#3501` (`SUBSCRIPTION_REQUIRED`) on Flash**: Removed decommissioned sandbox `autopush` endpoint from fallbacks so all requests route cleanly to live `daily` and `prod` endpoints.
+- **Deprecated Gemini 3.5 Flash Removed**: Fully removed `antigravity-gemini-3.5-flash` following Google's backend sunset, keeping only active models (Gemini 3.8 Flash, 3.7 Flash, 3.6 Flash, 3.1 Pro, and Claude 4.6).
+- **Clean Install Model Whitelisting**: Automatically injects a strict `provider.google.whitelist` in `opencode.json` on clean setup, hiding 18+ unauthenticated built-in Google AI Studio/Vertex models from the OpenCode model selector.
+- **In-Flight 403 `#3501` (`SUBSCRIPTION_REQUIRED`) Auto-Recovery**: Intercepts project resolution failures and immediately provisions/links the companion project via `onboardManagedProject` without crashing the active agent session.
+- **Auto-Update Commands**: Includes `/antigravity-update` slash command and CLI updater (`antigravity-update`) for one-click plugin updates.
 
 | Enhancement | What Was Broken Upstream | How This Fork Fixes It |
 |---|---|---|
-| ⚡ **Automatic Slash Command Provisioning** | Slash commands like `/antigravity-quota` and `/antigravity-update` required manual file copying into `~/.config/opencode/command/`. | The plugin now automatically provisions `antigravity-quota.md` and `antigravity-update.md` on startup and configuration update. |
-| 🆕 **Gemini 3.8 Flash Support** | Backend restricted the newest `gemini-3.8-flash` model to official CLI signatures. | Added `resolveAntigravityGemini38FlashBackendModel` (→ `gemini-3.8-flash-{low,medium,high}`) and extended the CLI User-Agent spoofing regex to `/gemini-3\.[78]-flash/i`, unlocking **Gemini 3.8 Flash (Low/Medium/High)**. |
-| 🛡️ **Dangling Model Turn Sanitization** | Interrupted tools or aborted sessions caused Gemini to reject requests with `400 "Requests ending with a model turn are not supported"`. | Added automatic `sanitizeEndingModelTurn` pipeline for Gemini payloads + force-drop retry recovery (`MODEL_TURN_RECOVERY_NEEDED`). |
-| 🛡️ **Request Normalization & Clean Feedback** | Default filters caused false-positive blocks on coding and technical prompts with verbose legal notices. | Standardized payload configurations for development tasks and added concise single-line notification handling. |
-| ⏱️ **Server-Data-Driven Quota Exits** | Quota exhaustion retried blindly with backoff counters even when the server specified hours of wait time. | Captures `metadata.quotaResetTimeStamp` / `quotaResetDelay` from Google RPC errors, stores exact future reset timestamps, and enforces `max_all_blocked_wait_seconds` (default 120s) with clear model-switch suggestions. |
-| 📊 **Native Dual-Window Quota Tool** | Quota required a separate external plugin or returned flat model lists. | Embedded the official `antigravity_quota` tool directly into the auth plugin with full **5h Window + Weekly Window** tracking and progress bars via `/v1internal:retrieveUserQuotaSummary`. |
-| 🚀 **Gemini 3.7 Flash Support** | Backend returned `404 NOT_FOUND` (rewritten as *"enable preview access"* or `429`) when invoking `gemini-3.7-flash`. | Discovered that Google restricts 3.7 Flash strictly to official CLI signatures. The plugin now dynamically presents the official Antigravity CLI client signature (`antigravity/cli/...`), unlocking full native access to **Gemini 3.7 Flash (Low/Medium/High)**. |
-| ⚡ **Fast Multi-Account Failover** | On quota exhaustion the plugin would spin waiting on the same account (60s+ backoffs). | Default scheduling mode changed to `balance` with immediate `QUOTA_EXHAUSTED` failover (500ms) to the next account with quota. |
-| 🛠️ **IAM 403 / #3501 Auto-Recovery** | Requests failed with `403 IAM_PERMISSION_DENIED` or `SUBSCRIPTION_REQUIRED` (#3501) on new/unprovisioned accounts. | Automatic companion discovery + instant in-flight `onboardManagedProject` auto-recovery. Corrected `metadata.platform` to `PLATFORM_UNSPECIFIED`. |
-| ⚡ **Gemini 3.6 Flash & Sunset of 3.5** | Native multi-tier backend model resolution (`gemini-3.6-flash-{low,medium,high}`). Deprecated 3.5 Flash removed. | Multi-tier thinking resolution support built into `model-resolver.ts`; deprecated 3.5 cleanly retired. |
-| 🧹 **Clean CI & Community Standards** | Upstream had broken npm publishing actions and no rulesets. | Replaced with clean, automated Node.js CI with **1,056 tests passing**, security policies, and Dependabot groups. |
+| **Automatic Slash Command Provisioning** | Slash commands like `/antigravity-quota` and `/antigravity-update` required manual file copying into `~/.config/opencode/command/`. | The plugin now automatically provisions `antigravity-quota.md` and `antigravity-update.md` on startup and configuration update. |
+| **Gemini 3.8 Flash Support** | Backend restricted the newest `gemini-3.8-flash` model to official CLI signatures. | Added `resolveAntigravityGemini38FlashBackendModel` (→ `gemini-3.8-flash-{low,medium,high}`) and extended the CLI User-Agent spoofing regex to `/gemini-3\.[78]-flash/i`, unlocking **Gemini 3.8 Flash (Low/Medium/High)**. |
+| **Dangling Model Turn Sanitization** | Interrupted tools or aborted sessions caused Gemini to reject requests with `400 "Requests ending with a model turn are not supported"`. | Added automatic `sanitizeEndingModelTurn` pipeline for Gemini payloads + force-drop retry recovery (`MODEL_TURN_RECOVERY_NEEDED`). |
+| **Request Normalization & Clean Feedback** | Default filters caused false-positive blocks on coding and technical prompts with verbose legal notices. | Standardized payload configurations for development tasks and added concise single-line notification handling. |
+| ⏱**Server-Data-Driven Quota Exits** | Quota exhaustion retried blindly with backoff counters even when the server specified hours of wait time. | Captures `metadata.quotaResetTimeStamp` / `quotaResetDelay` from Google RPC errors, stores exact future reset timestamps, and enforces `max_all_blocked_wait_seconds` (default 120s) with clear model-switch suggestions. |
+| **Native Dual-Window Quota Tool** | Quota required a separate external plugin or returned flat model lists. | Embedded the official `antigravity_quota` tool directly into the auth plugin with full **5h Window + Weekly Window** tracking and progress bars via `/v1internal:retrieveUserQuotaSummary`. |
+| **Gemini 3.7 Flash Support** | Backend returned `404 NOT_FOUND` (rewritten as *"enable preview access"* or `429`) when invoking `gemini-3.7-flash`. | Discovered that Google restricts 3.7 Flash strictly to official CLI signatures. The plugin now dynamically presents the official Antigravity CLI client signature (`antigravity/cli/...`), unlocking full native access to **Gemini 3.7 Flash (Low/Medium/High)**. |
+| **Fast Multi-Account Failover** | On quota exhaustion the plugin would spin waiting on the same account (60s+ backoffs). | Default scheduling mode changed to `balance` with immediate `QUOTA_EXHAUSTED` failover (500ms) to the next account with quota. |
+| **IAM 403 / #3501 Auto-Recovery** | Requests failed with `403 IAM_PERMISSION_DENIED` or `SUBSCRIPTION_REQUIRED` (#3501) on new/unprovisioned accounts. | Automatic companion discovery + instant in-flight `onboardManagedProject` auto-recovery. Corrected `metadata.platform` to `PLATFORM_UNSPECIFIED`. |
+| **Gemini 3.6 Flash & Sunset of 3.5** | Native multi-tier backend model resolution (`gemini-3.6-flash-{low,medium,high}`). Deprecated 3.5 Flash removed. | Multi-tier thinking resolution support built into `model-resolver.ts`; deprecated 3.5 cleanly retired. |
+| **Clean CI & Community Standards** | Upstream had broken npm publishing actions and no rulesets. | Replaced with clean, automated Node.js CI with **1,056 tests passing**, security policies, and Dependabot groups. |
 
 ---
 
@@ -88,7 +88,7 @@ No configuration changes are required when transitioning between OpenCode v1 and
 ---
 
 <details open>
-<summary><b>⚠️ Terms of Service Warning — Read Before Installing</b></summary>
+<summary><b>Terms of Service Warning — Read Before Installing</b></summary>
 
 > [!CAUTION]
 > Using this plugin (and any proxy for Antigravity) violates Google's Terms of Service. A number of users have reported their Google accounts being **banned** or **shadow-banned** (restricted access without explicit notification).
@@ -130,7 +130,7 @@ Then in `~/.config/opencode/opencode.json`:
 
 ```json
 {
-  "plugin": ["/path/to/plugin"]
+  "plugins": ["/path/to/plugin"]
 }
 ```
 
@@ -171,10 +171,10 @@ Then in `~/.config/opencode/opencode.json`:
 
 | Model | Variants | Description |
 |---|---|---|
-| `antigravity-gemini-3.8-flash` 🆕 | `low`, `medium`, `high` | **Gemini 3.8 Flash** with thinking tiers *(Default)* |
-| `antigravity-gemini-3.7-flash` 🚀 | `low`, `medium`, `high` | **Gemini 3.7 Flash** with dynamic thinking |
-| `antigravity-gemini-3.6-flash` ⚡ | `low`, `medium`, `high` | **Gemini 3.6 Flash** with thinking tiers |
-| `antigravity-gemini-3.1-pro` 🧠 | `low`, `high` | **Gemini 3.1 Pro** with 1M token context |
+| `antigravity-gemini-3.8-flash` | `low`, `medium`, `high` | **Gemini 3.8 Flash** with thinking tiers *(Default)* |
+| `antigravity-gemini-3.7-flash` | `low`, `medium`, `high` | **Gemini 3.7 Flash** with dynamic thinking |
+| `antigravity-gemini-3.6-flash` | `low`, `medium`, `high` | **Gemini 3.6 Flash** with thinking tiers |
+| `antigravity-gemini-3.1-pro` | `low`, `high` | **Gemini 3.1 Pro** with 1M token context |
 | `antigravity-claude-sonnet-4-6` | `low`, `medium`, `high`, `max` | Claude Sonnet 4.6 |
 | `antigravity-claude-opus-4-6-thinking` | `low`, `medium`, `high`, `max` | Claude Opus 4.6 with extended thinking |
 | `antigravity-gpt-oss-120b-medium` | `low`, `medium`, `high` | GPT-OSS 120B open-source model |
@@ -189,8 +189,8 @@ In OpenCode v2 this is **not required** because the plugin registers all models 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["github:JoshRob297/opencode-antigravity-auth"],
-  "provider": {
+  "plugins": ["github:JoshRob297/opencode-antigravity-auth"],
+  "providers": {
     "google": {
       "models": {
         "antigravity-gemini-3.8-flash": {
@@ -298,7 +298,7 @@ Available levels:
 - `"high"` — Blocks only high-probability harm (`BLOCK_ONLY_HIGH`). Recommended for extensive development, vulnerability analysis, and debugging.
 - `"none"` — Disables external safety classifiers (`BLOCK_NONE`) and bypasses prompt injection filters (`HARM_CATEGORY_JAILBREAK`).
 
-> ⚠️ **DISCLAIMER:** Setting `safety_level` to `"none"` is strictly for authorized security research and advanced workflows. Using `"none"` is done solely at your own discretion and risk. We accept no responsibility or liability for account reviews, suspensions, or bans enacted by Google.
+> **DISCLAIMER:** Setting `safety_level` to `"none"` is strictly for authorized security research and advanced workflows. Using `"none"` is done solely at your own discretion and risk. We accept no responsibility or liability for account reviews, suspensions, or bans enacted by Google.
 
 ### OPSEC Safety Shield (`safety_shield`)
 
@@ -408,7 +408,7 @@ Add this to your `google` provider config:
 
 ```json
 {
-  "provider": {
+  "providers": {
     "google": {
       "npm": "@ai-sdk/google",
       "models": { ... }
@@ -434,14 +434,14 @@ Invalid JSON payload received. Unknown name "parameters" at 'request.tools[0]'
 **Solutions:**
 1. **Update to latest release from GitHub:**
    ```json
-   { "plugin": ["github:JoshRob297/opencode-antigravity-auth"] }
+   { "plugins": ["github:JoshRob297/opencode-antigravity-auth"] }
    ```
 
 2. **Disable MCP servers** one-by-one to find the problematic one
 
 3. **Add npm override:**
    ```json
-   { "provider": { "google": { "npm": "@ai-sdk/google" } } }
+   { "providers": { "google": { "npm": "@ai-sdk/google" } } }
    ```
 
 ---
@@ -621,7 +621,7 @@ DCP creates synthetic assistant messages that lack thinking blocks. **List this 
 
 ```json
 {
-  "plugin": [
+  "plugins": [
     "github:JoshRob297/opencode-antigravity-auth",
     "@tarquinen/opencode-dcp@latest"
   ]

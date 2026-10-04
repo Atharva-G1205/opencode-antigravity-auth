@@ -20,8 +20,8 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-log_pass() { echo -e "${GREEN}✓ PASS${NC}: $1"; ((PASS++)); }
-log_fail() { echo -e "${RED}✗ FAIL${NC}: $1"; ((FAIL++)); }
+log_pass() { echo -e "${GREEN}PASS${NC}: $1"; ((PASS++)); }
+log_fail() { echo -e "${RED}FAIL${NC}: $1"; ((FAIL++)); }
 log_skip() { echo -e "${YELLOW}○ SKIP${NC}: $1"; ((SKIP++)); }
 log_info() { echo -e "  ${BLUE}→${NC} $1"; }
 

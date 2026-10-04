@@ -52,10 +52,10 @@ Gemini 3 models use string-based thinking levels. Available levels differ by mod
 
 | Level | Flash | Pro | Description |
 |-------|-------|-----|-------------|
-| `minimal` | ✅ | ❌ | Minimal thinking, lowest latency |
-| `low` | ✅ | ✅ | Light thinking |
-| `medium` | ✅ | ❌ | Balanced thinking |
-| `high` | ✅ | ✅ | Maximum thinking (default) |
+| `minimal` | | | Minimal thinking, lowest latency |
+| `low` | | | Light thinking |
+| `medium` | | | Balanced thinking |
+| `high` | | | Maximum thinking (default) |
 
 > **Note:** The API rejects invalid levels (e.g., `"minimal"` on Pro). Configure variants accordingly.
 

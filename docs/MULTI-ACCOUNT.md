@@ -129,7 +129,7 @@ Accounts are stored in `~/.config/opencode/antigravity-accounts.json`:
 }
 ```
 
-> ⚠️ **Security:** This file contains OAuth refresh tokens. Treat it like a password file.
+> **Security:** This file contains OAuth refresh tokens. Treat it like a password file.
 
 ### Fields
 

@@ -261,4 +261,27 @@ describe("Guardrail / Safety Filter Sanitization", () => {
     const fourth = sanitizeGuardrailMessage(createCandidate(), sessionKey) as any;
     expect(fourth.candidates[0].content.parts[0].text).toContain("Reintentando");
   });
+
+  it("preserves thoughtSignature parts when escalating a malformed-call loop", () => {
+    const sessionKey = "test-session-signature";
+    const createCandidateWithSignature = () => ({
+      candidates: [
+        {
+          finishReason: "MALFORMED_FUNCTION_CALL",
+          content: {
+            role: "model",
+            parts: [{ thoughtSignature: "sig-abc", text: "partial" }],
+          },
+        },
+      ],
+    });
+
+    sanitizeGuardrailMessage(createCandidateWithSignature(), sessionKey);
+    sanitizeGuardrailMessage(createCandidateWithSignature(), sessionKey);
+    const looped = sanitizeGuardrailMessage(createCandidateWithSignature(), sessionKey) as any;
+
+    const parts = looped.candidates[0].content.parts;
+    expect(parts.some((p: any) => p.thoughtSignature === "sig-abc")).toBe(true);
+    expect(parts.some((p: any) => typeof p.text === "string" && p.text.includes("Bucle de llamadas malformadas consecutivas detectado"))).toBe(true);
+  });
 });

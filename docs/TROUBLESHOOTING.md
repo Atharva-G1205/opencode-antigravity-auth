@@ -163,14 +163,14 @@ Invalid JSON payload received. Unknown name "parameters" at 'request.tools[0]'
 **Solutions:**
 1. **Update to latest release from GitHub:**
    ```json
-   { "plugin": ["github:JoshRob297/opencode-antigravity-auth"] }
+   { "plugins": ["github:JoshRob297/opencode-antigravity-auth"] }
    ```
 
 2. **Disable MCP servers** one-by-one to find the problematic one
 
 3. **Add npm override:**
    ```json
-   { "provider": { "google": { "npm": "@ai-sdk/google" } } }
+   { "providers": { "google": { "npm": "@ai-sdk/google" } } }
    ```
 
 ---
@@ -202,7 +202,7 @@ Google has significantly tightened quota and rate-limit enforcement. This affect
 2. **OpenCode's request pattern** — OpenCode makes more API calls than native apps (tool calls, retries, streaming, multi-turn chains), which triggers limits faster than "normal" usage
 3. **Shadow bans** — Some accounts become effectively unusable for extended periods once flagged, while others continue working normally
 
-> ⚠️ **Important:** Using this plugin may increase the chance of triggering automated abuse/rate-limit protections. The upstream provider can restrict, suspend, or terminate access at their discretion. **USE AT YOUR OWN RISK.**
+> **Important:** Using this plugin may increase the chance of triggering automated abuse/rate-limit protections. The upstream provider can restrict, suspend, or terminate access at their discretion. **USE AT YOUR OWN RISK.**
 
 **Solutions:**
 
@@ -253,7 +253,7 @@ If you only have one account, you'll likely have a better experience using [Anti
 If adding new accounts:
 1. Delete accounts file: `rm ~/.config/opencode/antigravity-accounts.json`
 2. Re-authenticate: `opencode auth login`
-3. Update to latest release: `"plugin": ["github:JoshRob297/opencode-antigravity-auth"]`
+3. Update to latest release: `"plugins": ["github:JoshRob297/opencode-antigravity-auth"]`
 4. Consider "warming up" the account in Antigravity IDE first
 
 </details>
@@ -357,7 +357,7 @@ ssh -L 51121:localhost:51121 user@remote
 ## Migrating Accounts Between Machines
 
 When copying `antigravity-accounts.json` to a new machine:
-1. Ensure the plugin is installed: `"plugin": ["github:JoshRob297/opencode-antigravity-auth"]`
+1. Ensure the plugin is installed: `"plugins": ["github:JoshRob297/opencode-antigravity-auth"]`
 2. Copy `~/.config/opencode/antigravity-accounts.json`
 3. If you get "API key missing" error, the refresh token may be invalid — re-authenticate
 
@@ -371,7 +371,7 @@ DCP creates synthetic assistant messages that lack thinking blocks. **List this 
 
 ```json
 {
-  "plugin": [
+  "plugins": [
     "github:JoshRob297/opencode-antigravity-auth",
     "@tarquinen/opencode-dcp@latest"
   ]

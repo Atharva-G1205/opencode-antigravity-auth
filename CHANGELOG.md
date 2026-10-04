@@ -9,7 +9,7 @@
 - **V2 Session Concurrency & FIFO Queue:** Decoupled `pendingRequests` and `pendingFamily` in `src/v2/adapter.ts` into a bounded per-session FIFO queue (`pendingBySession`), preventing request/metadata collisions when subagents or parallel tool calls execute simultaneously in the same session.
 - **Access Token Caching in V2 Adapter:** Replaced redundant Google OAuth round-trips with shared in-memory token cache (`getAccessToken` via `resolveCachedAuth`), eliminating unnecessary token refreshes on every model call.
 - **Build Artifacts & Distribution Packaging (Closes #26):** Tracked `dist/src/plugin/stats.*` and `dist/src/v2/adapter.*` in git, unignored `dist` in `.gitignore`, and added CI sync guard ensuring committed `dist/` matches `src/`.
-- **Clean UI Compliance:** Purged residual emojis from all error and status logs across the plugin core.
+- **Clean UI Compliance:** Purged residual emojis from error/status logs across the plugin core, CLI scripts, documentation, and GitHub templates.
 
 ### Changed
 

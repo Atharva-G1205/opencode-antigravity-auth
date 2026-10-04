@@ -2,7 +2,6 @@ import type { SignatureStore, StreamingCallbacks, StreamingOptions, ThoughtBuffe
 export declare const CLEAN_GUARDRAIL_MESSAGE = "[Solicitud bloqueada por filtros de seguridad de Gemini. Por favor, intenta reformular tu prompt o enfoque.]";
 export declare const CLEAN_MALFORMED_CALL_MESSAGE = "[Llamada de herramienta vac\u00EDa o malformada generada por el modelo. Reintentando o reformula tu solicitud.]";
 export declare const LOOP_DETECTED_MALFORMED_MESSAGE = "[Bucle de llamadas malformadas consecutivas detectado. La solicitud ha sido detenida para evitar bucle infinito. Por favor reformula tu prompt.]";
-export declare function resetMalformedStreak(sessionKey: string): void;
 /**
  * Checks if a text is the generic verbose Gemini filter blocking message
  * and replaces it with a clean, concise prompt rephrase invitation.

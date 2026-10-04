@@ -591,7 +591,7 @@ async function main(): Promise<void> {
 
   const totalTurns = tests.reduce((sum, t) => sum + t.turns.length, 0);
   const concurrentCount = CONCURRENT_TESTS.reduce((sum, t) => sum + t.concurrentRequests, 0);
-  console.log(`\n🧪 Regression Tests [${suite.toUpperCase()}] (${tests.length} tests, ${totalTurns} turns + ${concurrentCount} concurrent)\n${"=".repeat(60)}\n`);
+  console.log(`\nRegression Tests [${suite.toUpperCase()}] (${tests.length} tests, ${totalTurns} turns + ${concurrentCount} concurrent)\n${"=".repeat(60)}\n`);
 
   if (dryRun) {
     console.log("Tests to run:\n");
@@ -616,9 +616,9 @@ async function main(): Promise<void> {
     results.push({ test, result });
 
     if (result.success) {
-      console.log(`  Status: ✅ PASS (${result.turnsCompleted}/${test.turns.length} turns, ${(result.duration / 1000).toFixed(1)}s)`);
+      console.log(`  Status: PASS (${result.turnsCompleted}/${test.turns.length} turns, ${(result.duration / 1000).toFixed(1)}s)`);
     } else {
-      console.log(`  Status: ❌ FAIL`);
+      console.log(`  Status: FAIL`);
       console.log(`    Error: ${result.error}`);
       console.log(`    Completed: ${result.turnsCompleted}/${test.turns.length} turns`);
     }
@@ -639,7 +639,7 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     if (concurrentTests.length > 0) {
-      console.log(`\n🔄 Concurrent Tests (${concurrentTests.length} tests)\n${"-".repeat(40)}\n`);
+      console.log(`\nConcurrent Tests (${concurrentTests.length} tests)\n${"-".repeat(40)}\n`);
       for (const test of concurrentTests) {
         console.log(`Testing: ${test.name} [concurrent]`);
         console.log(`  Model: ${test.model}`);
@@ -649,9 +649,9 @@ async function main(): Promise<void> {
         results.push({ test: test as unknown as MultiTurnTest, result });
 
         if (result.success) {
-          console.log(`  Status: ✅ PASS (${result.turnsCompleted} requests, ${(result.duration / 1000).toFixed(1)}s)`);
+          console.log(`  Status: PASS (${result.turnsCompleted} requests, ${(result.duration / 1000).toFixed(1)}s)`);
         } else {
-          console.log(`  Status: ❌ FAIL`);
+          console.log(`  Status: FAIL`);
           console.log(`    Error: ${result.error}`);
         }
         console.log();
@@ -669,7 +669,7 @@ async function main(): Promise<void> {
   if (failed > 0) {
     console.log("Failed tests:");
     for (const r of results.filter((r) => !r.result.success)) {
-      console.log(`  ❌ ${r.test.name}: ${r.result.error}`);
+      console.log(`  ${r.test.name}: ${r.result.error}`);
     }
     process.exit(1);
   }

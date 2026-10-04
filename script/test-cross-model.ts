@@ -61,10 +61,10 @@ function runTests(): void {
   const geminiFamily = getModelFamily('gemini-3-pro-low');
   const claudeFamily = getModelFamily('claude-opus-4-6-thinking-medium');
   if (geminiFamily === 'gemini' && claudeFamily === 'claude') {
-    console.log('  ✅ PASS: Model families detected correctly');
+    console.log('  PASS: Model families detected correctly');
     passed++;
   } else {
-    console.log(`  ❌ FAIL: Expected gemini/claude, got ${geminiFamily}/${claudeFamily}`);
+    console.log(`  FAIL: Expected gemini/claude, got ${geminiFamily}/${claudeFamily}`);
     failed++;
   }
 
@@ -81,34 +81,34 @@ function runTests(): void {
   const toolPart = modelParts[1];
 
   if (thinkingPart.thoughtSignature === undefined) {
-    console.log('  ✅ PASS: Top-level thoughtSignature stripped from thinking part');
+    console.log('  PASS: Top-level thoughtSignature stripped from thinking part');
     passed++;
   } else {
-    console.log('  ❌ FAIL: thoughtSignature still present on thinking part');
+    console.log('  FAIL: thoughtSignature still present on thinking part');
     failed++;
   }
 
   if (toolPart.metadata?.google?.thoughtSignature === undefined) {
-    console.log('  ✅ PASS: Nested metadata.google.thoughtSignature stripped from tool part');
+    console.log('  PASS: Nested metadata.google.thoughtSignature stripped from tool part');
     passed++;
   } else {
-    console.log('  ❌ FAIL: metadata.google.thoughtSignature still present');
+    console.log('  FAIL: metadata.google.thoughtSignature still present');
     failed++;
   }
 
   if (toolPart.functionCall?.name === 'Bash') {
-    console.log('  ✅ PASS: functionCall structure preserved');
+    console.log('  PASS: functionCall structure preserved');
     passed++;
   } else {
-    console.log('  ❌ FAIL: functionCall corrupted');
+    console.log('  FAIL: functionCall corrupted');
     failed++;
   }
 
   if (result.modified && result.signaturesStripped === 2) {
-    console.log(`  ✅ PASS: Sanitization metrics correct (modified=true, stripped=${result.signaturesStripped})`);
+    console.log(`  PASS: Sanitization metrics correct (modified=true, stripped=${result.signaturesStripped})`);
     passed++;
   } else {
-    console.log(`  ❌ FAIL: Metrics incorrect (modified=${result.modified}, stripped=${result.signaturesStripped})`);
+    console.log(`  FAIL: Metrics incorrect (modified=${result.modified}, stripped=${result.signaturesStripped})`);
     failed++;
   }
 
@@ -118,10 +118,10 @@ function runTests(): void {
   });
 
   if (!sameFamily.modified && sameFamily.signaturesStripped === 0) {
-    console.log('  ✅ PASS: No sanitization for same model family');
+    console.log('  PASS: No sanitization for same model family');
     passed++;
   } else {
-    console.log('  ❌ FAIL: Should not sanitize same model family');
+    console.log('  FAIL: Should not sanitize same model family');
     failed++;
   }
 
@@ -130,10 +130,10 @@ function runTests(): void {
   console.log(`Failed: ${failed}/${passed + failed}`);
   
   if (failed > 0) {
-    console.log('\n❌ Some tests failed');
+    console.log('\nSome tests failed');
     process.exit(1);
   } else {
-    console.log('\n✅ All E2E tests passed');
+    console.log('\nAll E2E tests passed');
   }
 }
 
