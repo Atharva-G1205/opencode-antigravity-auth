@@ -81,7 +81,7 @@ export declare const CLAUDE_TOOL_SYSTEM_INSTRUCTION = "CRITICAL TOOL USAGE INSTR
  * Template for parameter signature injection into tool descriptions.
  * {params} will be replaced with the actual parameter list.
  */
-export declare const CLAUDE_DESCRIPTION_PROMPT = "\n\n\u26A0\uFE0F STRICT PARAMETERS: {params}.";
+export declare const CLAUDE_DESCRIPTION_PROMPT = "\n\nSTRICT PARAMETERS: {params}.";
 export declare const EMPTY_SCHEMA_PLACEHOLDER_NAME = "_placeholder";
 export declare const EMPTY_SCHEMA_PLACEHOLDER_DESCRIPTION = "Placeholder. Always pass true.";
 /**

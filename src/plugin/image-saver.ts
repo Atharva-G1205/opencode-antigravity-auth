@@ -7,6 +7,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { createLogger } from './logger';
+
+const log = createLogger('image-saver');
 
 /**
  * Default directory for saving generated images.
@@ -64,7 +67,7 @@ export function saveImageToDisk(base64Data: string, mimeType: string): string {
     return filePath;
   } catch (error) {
     // If saving fails, return empty string (caller will fall back to base64)
-    console.error('[image-saver] Failed to save image:', error);
+    log.warn(`Failed to save image: ${error instanceof Error ? error.message : String(error)}`);
     return '';
   }
 }

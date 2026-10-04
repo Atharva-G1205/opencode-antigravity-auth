@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { CACHE_DIR, PACKAGE_NAME } from "./constants";
+import { logAutoUpdate } from "./logging";
 
 interface BunLockfile {
   workspaces?: {
@@ -36,7 +37,7 @@ function removeFromBunLock(packageName: string): boolean {
 
     if (modified) {
       fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2));
-      console.log(`[auto-update-checker] Removed from bun.lock: ${packageName}`);
+      logAutoUpdate(`Removed from bun.lock: ${packageName}`);
     }
 
     return modified;
@@ -56,7 +57,7 @@ export function invalidatePackage(packageName: string = PACKAGE_NAME): boolean {
 
     if (fs.existsSync(pkgDir)) {
       fs.rmSync(pkgDir, { recursive: true, force: true });
-      console.log(`[auto-update-checker] Package removed: ${pkgDir}`);
+      logAutoUpdate(`Package removed: ${pkgDir}`);
       packageRemoved = true;
     }
 
@@ -66,7 +67,7 @@ export function invalidatePackage(packageName: string = PACKAGE_NAME): boolean {
       if (pkgJson.dependencies?.[packageName]) {
         delete pkgJson.dependencies[packageName];
         fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2));
-        console.log(`[auto-update-checker] Dependency removed from package.json: ${packageName}`);
+        logAutoUpdate(`Dependency removed from package.json: ${packageName}`);
         dependencyRemoved = true;
       }
     }
@@ -74,18 +75,18 @@ export function invalidatePackage(packageName: string = PACKAGE_NAME): boolean {
     lockRemoved = removeFromBunLock(packageName);
 
     if (!packageRemoved && !dependencyRemoved && !lockRemoved) {
-      console.log(`[auto-update-checker] Package not found, nothing to invalidate: ${packageName}`);
+      logAutoUpdate(`Package not found, nothing to invalidate: ${packageName}`);
       return false;
     }
 
     return true;
   } catch (err) {
-    console.error("[auto-update-checker] Failed to invalidate package:", err);
+    logAutoUpdate(`Failed to invalidate package: ${err instanceof Error ? err.message : String(err)}`);
     return false;
   }
 }
 
 export function invalidateCache(): boolean {
-  console.warn("[auto-update-checker] WARNING: invalidateCache is deprecated, use invalidatePackage");
+  logAutoUpdate("WARNING: invalidateCache is deprecated, use invalidatePackage");
   return invalidatePackage();
 }

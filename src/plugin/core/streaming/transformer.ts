@@ -9,6 +9,14 @@ import { processImageData } from '../../image-saver';
 
 export const CLEAN_GUARDRAIL_MESSAGE = "[Solicitud bloqueada por filtros de seguridad de Gemini. Por favor, intenta reformular tu prompt o enfoque.]";
 export const CLEAN_MALFORMED_CALL_MESSAGE = "[Llamada de herramienta vacía o malformada generada por el modelo. Reintentando o reformula tu solicitud.]";
+export const LOOP_DETECTED_MALFORMED_MESSAGE = "[Bucle de llamadas malformadas consecutivas detectado. La solicitud ha sido detenida para evitar bucle infinito. Por favor reformula tu prompt.]";
+
+const MAX_CONSECUTIVE_MALFORMED = 3;
+const consecutiveMalformedBySession = new Map<string, number>();
+
+export function resetMalformedStreak(sessionKey: string): void {
+  consecutiveMalformedBySession.delete(sessionKey);
+}
 
 /**
  * Checks if a text is the generic verbose Gemini filter blocking message
@@ -30,7 +38,7 @@ export function sanitizeGuardrailText(text: string): string {
  * with a concise rephrasing invitation. Also handles MALFORMED_FUNCTION_CALL
  * finishReason by rewriting to STOP with explanatory content to avoid hard session crash.
  */
-export function sanitizeGuardrailMessage(response: unknown): unknown {
+export function sanitizeGuardrailMessage(response: unknown, sessionKey?: string): unknown {
   if (!response || typeof response !== "object") return response;
   const resp = response as Record<string, unknown>;
 
@@ -46,23 +54,36 @@ export function sanitizeGuardrailMessage(response: unknown): unknown {
       }
 
       if (cand.finishReason === "MALFORMED_FUNCTION_CALL") {
+        let msg = CLEAN_MALFORMED_CALL_MESSAGE;
+        if (sessionKey) {
+          const streak = (consecutiveMalformedBySession.get(sessionKey) ?? 0) + 1;
+          consecutiveMalformedBySession.set(sessionKey, streak);
+          if (streak >= MAX_CONSECUTIVE_MALFORMED) {
+            msg = LOOP_DETECTED_MALFORMED_MESSAGE;
+          }
+        }
+
         cand.finishReason = "STOP";
         if (cand.finishMessage) {
           delete cand.finishMessage;
         }
         if (!cand.content || typeof cand.content !== "object") {
-          cand.content = { parts: [{ text: CLEAN_MALFORMED_CALL_MESSAGE }], role: "model" };
+          cand.content = { parts: [{ text: msg }], role: "model" };
         } else {
           const content = cand.content as Record<string, unknown>;
           if (!Array.isArray(content.parts) || content.parts.length === 0) {
-            content.parts = [{ text: CLEAN_MALFORMED_CALL_MESSAGE }];
+            content.parts = [{ text: msg }];
           } else {
             const hasText = content.parts.some((p: any) => p && typeof p === "object" && typeof p.text === "string" && p.text.trim().length > 0);
             if (!hasText) {
-              content.parts.push({ text: CLEAN_MALFORMED_CALL_MESSAGE });
+              content.parts.push({ text: msg });
+            } else if (msg === LOOP_DETECTED_MALFORMED_MESSAGE) {
+              content.parts = [{ text: msg }];
             }
           }
         }
+      } else if (cand.finishReason === "STOP" && sessionKey) {
+        consecutiveMalformedBySession.delete(sessionKey);
       }
 
       if (cand.content && typeof cand.content === "object") {
@@ -290,7 +311,7 @@ export function transformSseLine(
       }
 
       // Clean guardrail / safety filter message
-      response = sanitizeGuardrailMessage(response);
+      response = sanitizeGuardrailMessage(response, options.signatureSessionKey);
 
       // Extract and notify safety ratings if present
       if (callbacks.onSafetyRatings && parsed.response && typeof parsed.response === "object") {

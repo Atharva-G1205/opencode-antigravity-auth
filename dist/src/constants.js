@@ -131,7 +131,7 @@ If you are unsure about a tool's parameters, YOU MUST read the schema definition
  * Template for parameter signature injection into tool descriptions.
  * {params} will be replaced with the actual parameter list.
  */
-export const CLAUDE_DESCRIPTION_PROMPT = "\n\n⚠️ STRICT PARAMETERS: {params}.";
+export const CLAUDE_DESCRIPTION_PROMPT = "\n\nSTRICT PARAMETERS: {params}.";
 export const EMPTY_SCHEMA_PLACEHOLDER_NAME = "_placeholder";
 export const EMPTY_SCHEMA_PLACEHOLDER_DESCRIPTION = "Placeholder. Always pass true.";
 /**

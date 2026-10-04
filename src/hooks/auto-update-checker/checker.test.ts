@@ -131,4 +131,29 @@ describe("findPluginEntry", () => {
     expect(result!.isPinned).toBe(false);
     expect(result!.pinnedVersion).toBeNull();
   });
+
+  it("reads the native plural plugins key (OpenCode v2)", async () => {
+    const { findPluginEntry } = await import("./checker");
+    fsMock.existsSync.mockImplementation((p: string) => p.endsWith("opencode.json"));
+    fsMock.readFileSync.mockReturnValue(
+      JSON.stringify({ plugins: ["opencode-antigravity-auth@2.1.0", "other"] }),
+    );
+    const result = findPluginEntry("/project");
+    expect(result).not.toBeNull();
+    expect(result!.isPinned).toBe(true);
+    expect(result!.pinnedVersion).toBe("2.1.0");
+  });
+
+  it("prefers native plural plugins over legacy singular plugin", async () => {
+    const { findPluginEntry } = await import("./checker");
+    fsMock.existsSync.mockImplementation((p: string) => p.endsWith("opencode.json"));
+    fsMock.readFileSync.mockReturnValue(
+      JSON.stringify({
+        plugins: ["opencode-antigravity-auth@2.1.0"],
+        plugin: ["opencode-antigravity-auth@1.0.0"],
+      }),
+    );
+    const result = findPluginEntry("/project");
+    expect(result!.pinnedVersion).toBe("2.1.0");
+  });
 });

@@ -6,6 +6,8 @@
  * - Tool normalization (function/custom format)
  * - Schema transformation (JSON Schema -> Gemini Schema format)
  */
+import { createLogger } from "../logger";
+const log = createLogger("gemini-transform");
 /**
  * Transform a JSON Schema to Gemini-compatible format.
  * Based on @google/genai SDK's processJsonSchema() function.
@@ -181,7 +183,7 @@ export function buildImageGenerationConfig() {
     if (VALID_ASPECT_RATIOS.includes(aspectRatio)) {
         return { aspectRatio };
     }
-    console.warn(`[gemini] Invalid aspect ratio "${aspectRatio}". Using default "1:1". Valid values: ${VALID_ASPECT_RATIOS.join(", ")}`);
+    log.warn(`Invalid aspect ratio "${aspectRatio}". Using default "1:1". Valid values: ${VALID_ASPECT_RATIOS.join(", ")}`);
     // Default to 1:1 square aspect ratio
     return { aspectRatio: "1:1" };
 }
@@ -432,7 +434,7 @@ export function wrapToolsAsFunctionDeclarations(payload) {
     }
     else if (hasWebSearchTool && functionDeclarations.length > 0) {
         // Log warning: web search requested but can't be used with functions
-        console.warn("[gemini] web_search tool detected but cannot be combined with function declarations. " +
+        log.warn("web_search tool detected but cannot be combined with function declarations. " +
             "Use the explicit google_search() tool call instead.");
     }
     payload.tools = finalTools;

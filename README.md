@@ -587,24 +587,24 @@ ssh -L 51121:localhost:51121 user@remote
 
 ---
 
-### Configuration Key Typo: `plugin` not `plugins`
+### Configuration Key: `plugins` (v2) or `plugin` (v1)
 
-The correct key is `plugin` (singular):
+In OpenCode v2, use the native plural key:
 
 ```json
 {
-  "plugin": ["github:JoshRob297/opencode-antigravity-auth"]
+  "plugins": ["github:JoshRob297/opencode-antigravity-auth"]
 }
 ```
 
-**Not** `"plugins"` (will cause "Unrecognized key" error).
+OpenCode v1 uses the legacy singular key `"plugin"`. The updater detects both automatically and preserves whichever convention your configuration uses.
 
 ---
 
 ### Migrating Accounts Between Machines
 
 When copying `antigravity-accounts.json` to a new machine:
-1. Ensure the plugin is installed: `"plugin": ["github:JoshRob297/opencode-antigravity-auth"]`
+1. Ensure the plugin is installed in `~/.config/opencode/opencode.json` (`"plugins"` or `"plugin"`)
 2. Copy `~/.config/opencode/antigravity-accounts.json`
 3. If you get "API key missing" error, the refresh token may be invalid — re-authenticate
 

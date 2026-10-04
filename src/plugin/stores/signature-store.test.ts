@@ -226,4 +226,39 @@ describe("Guardrail / Safety Filter Sanitization", () => {
     expect(sanitized.candidates[0].finishMessage).toBeUndefined();
     expect(sanitized.candidates[0].content.parts.some((p: any) => p.text.includes("malformada"))).toBe(true);
   });
+
+  it("escalates to loop detected message after consecutive MALFORMED_FUNCTION_CALL in same session", () => {
+    const sessionKey = "test-session-loop";
+    const createCandidate = () => ({
+      candidates: [
+        {
+          finishReason: "MALFORMED_FUNCTION_CALL",
+          content: { role: "model", parts: [] },
+        },
+      ],
+    });
+
+    const first = sanitizeGuardrailMessage(createCandidate(), sessionKey) as any;
+    expect(first.candidates[0].content.parts[0].text).toContain("Reintentando");
+
+    const second = sanitizeGuardrailMessage(createCandidate(), sessionKey) as any;
+    expect(second.candidates[0].content.parts[0].text).toContain("Reintentando");
+
+    const third = sanitizeGuardrailMessage(createCandidate(), sessionKey) as any;
+    expect(third.candidates[0].content.parts[0].text).toContain("Bucle de llamadas malformadas consecutivas detectado");
+
+    // Recovers after normal STOP
+    const normalStop = {
+      candidates: [
+        {
+          finishReason: "STOP",
+          content: { role: "model", parts: [{ text: "all good" }] },
+        },
+      ],
+    };
+    sanitizeGuardrailMessage(normalStop, sessionKey);
+
+    const fourth = sanitizeGuardrailMessage(createCandidate(), sessionKey) as any;
+    expect(fourth.candidates[0].content.parts[0].text).toContain("Reintentando");
+  });
 });

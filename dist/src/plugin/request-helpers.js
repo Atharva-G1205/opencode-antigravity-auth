@@ -1984,7 +1984,7 @@ export function validateAndFixClaudeToolPairing(messages) {
     }
     // Third: Nuclear option - remove orphaned tool_use entirely
     // This should rarely happen, but provides defense in depth
-    console.warn("[antigravity] fixClaudeToolPairing left orphans, applying nuclear option", {
+    log.warn("[antigravity] fixClaudeToolPairing left orphans, applying nuclear option", {
         orphanIds: [...orphanIds],
     });
     return removeOrphanedToolUse(fixed, orphanIds);
@@ -2057,7 +2057,7 @@ function formatTypeHint(propData, depth = 0) {
  * @param promptTemplate - Template for the signature (default: "\\n\\nSTRICT PARAMETERS: {params}.")
  * @returns Modified tools array with signatures injected
  */
-export function injectParameterSignatures(tools, promptTemplate = "\n\n⚠️ STRICT PARAMETERS: {params}.") {
+export function injectParameterSignatures(tools, promptTemplate = "\n\nSTRICT PARAMETERS: {params}.") {
     if (!tools || !Array.isArray(tools))
         return tools;
     return tools.map((tool) => {

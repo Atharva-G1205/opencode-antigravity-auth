@@ -81,7 +81,7 @@ describe("executeSearch", () => {
     expect(result).toContain('"my query"');
   });
 
-  it("marks successful URL retrieval with ✓", async () => {
+  it("marks successful URL retrieval with [OK]", async () => {
     vi.stubGlobal(
       "fetch",
       mockFetch(
@@ -93,11 +93,11 @@ describe("executeSearch", () => {
       ),
     );
     const result = await executeSearch({ query: "q", urls: ["https://docs.example.com"] }, "tok", "proj");
-    expect(result).toContain("✓");
+    expect(result).toContain("[OK]");
     expect(result).toContain("https://docs.example.com");
   });
 
-  it("marks failed URL retrieval with ✗", async () => {
+  it("marks failed URL retrieval with [FAIL]", async () => {
     vi.stubGlobal(
       "fetch",
       mockFetch(
@@ -109,7 +109,7 @@ describe("executeSearch", () => {
       ),
     );
     const result = await executeSearch({ query: "q", urls: ["https://broken.example.com"] }, "tok", "proj");
-    expect(result).toContain("✗");
+    expect(result).toContain("[FAIL]");
   });
 
   it("returns error block on non-OK HTTP response", async () => {

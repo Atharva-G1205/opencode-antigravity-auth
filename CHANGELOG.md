@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.0.1] - 2026-10-03
+
+### Fixed
+
+- **OpenCode v2 Native Plural Keys (`plugins` & `providers`):** Upgraded `updater.ts` and auto-update `checker.ts` to detect, preserve, and default to OpenCode v2 plural keys without injecting conflicting singular keys (`plugin`/`provider`), eliminating configuration normalization errors (`path=$.providers.google kind=invalid action="skipped malformed recognized value"`).
+- **Streaming Guardrail Interceptor (MALFORMED_FUNCTION_CALL):** Intercepted Google Cloud Code `finishReason: "MALFORMED_FUNCTION_CALL"` when Gemini 3.8 Flash outputs empty tool calls, converting to clean `STOP` with sanitized messaging and adding consecutive streak bounding (3 attempts) to prevent runner loop freezes.
+- **V2 Session Concurrency & FIFO Queue:** Decoupled `pendingRequests` and `pendingFamily` in `src/v2/adapter.ts` into a bounded per-session FIFO queue (`pendingBySession`), preventing request/metadata collisions when subagents or parallel tool calls execute simultaneously in the same session.
+- **Access Token Caching in V2 Adapter:** Replaced redundant Google OAuth round-trips with shared in-memory token cache (`getAccessToken` via `resolveCachedAuth`), eliminating unnecessary token refreshes on every model call.
+- **Build Artifacts & Distribution Packaging (Closes #26):** Tracked `dist/src/plugin/stats.*` and `dist/src/v2/adapter.*` in git, unignored `dist` in `.gitignore`, and added CI sync guard ensuring committed `dist/` matches `src/`.
+- **Clean UI Compliance:** Purged residual emojis from all error and status logs across the plugin core.
+
+### Changed
+
+- **Default `auto_resume`:** Aligned `DEFAULT_CONFIG.auto_resume` to `false` matching Zod schema specifications to prevent unintended prompt dispatches upon session error recovery.
+
 ## [2.0.0] - 2026-09-22
 
 ### Added

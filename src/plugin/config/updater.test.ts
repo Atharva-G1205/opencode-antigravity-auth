@@ -42,14 +42,17 @@ describe("updateOpencodeConfig", () => {
     expect(result.configPath).toBe(configPath);
     expect(fs.existsSync(configPath)).toBe(true);
 
-    // Verify written config has correct structure
+    // Verify written config has correct structure (native v2 plural keys)
     const writtenConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     expect(writtenConfig.$schema).toBe("https://opencode.ai/config.json");
-    expect(writtenConfig.plugin).toContain("opencode-antigravity-auth@latest");
-    expect(writtenConfig.provider?.google?.models).toBeDefined();
-    expect(writtenConfig.provider?.google?.whitelist).toBeDefined();
-    expect(writtenConfig.provider?.google?.whitelist).toContain("antigravity-gemini-3.8-flash");
-    expect(writtenConfig.provider?.google?.whitelist).not.toContain("antigravity-gemini-3.5-flash");
+    expect(writtenConfig.plugins).toContain("opencode-antigravity-auth@latest");
+    expect(writtenConfig.providers?.google?.models).toBeDefined();
+    expect(writtenConfig.providers?.google?.whitelist).toBeDefined();
+    expect(writtenConfig.providers?.google?.whitelist).toContain("antigravity-gemini-3.8-flash");
+    expect(writtenConfig.providers?.google?.whitelist).not.toContain("antigravity-gemini-3.5-flash");
+    // No conflicting legacy key should be introduced
+    expect(writtenConfig.plugin).toBeUndefined();
+    expect(writtenConfig.provider).toBeUndefined();
   });
 
   test("replaces existing google models with plugin models and updates whitelist", async () => {
@@ -216,12 +219,59 @@ describe("updateOpencodeConfig", () => {
     expect(result.success).toBe(true);
 
     const writtenConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    const models = writtenConfig.provider.google.models;
+    const models = writtenConfig.providers.google.models;
 
     // Verify all models from OPENCODE_MODEL_DEFINITIONS are included
     for (const modelKey of Object.keys(OPENCODE_MODEL_DEFINITIONS)) {
       expect(models[modelKey]).toBeDefined();
     }
+  });
+
+  test("preserves native plural keys and does not introduce legacy singular keys", async () => {
+    const existingConfig = {
+      $schema: "https://opencode.ai/config.json",
+      plugins: ["opencode-antigravity-auth@latest", "other-plugin"],
+      providers: {
+        google: {
+          models: { "old-model": {} },
+          whitelist: ["old-model"],
+        },
+        commandcode: { models: {} },
+      },
+    };
+    fs.writeFileSync(configPath, JSON.stringify(existingConfig));
+
+    const result = await updateOpencodeConfig({ configPath });
+    expect(result.success).toBe(true);
+
+    const writtenConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    expect(writtenConfig.plugins).toContain("other-plugin");
+    expect(writtenConfig.providers.google.models["old-model"]).toBeUndefined();
+    expect(writtenConfig.providers.google.models["antigravity-gemini-3.7-flash"]).toBeDefined();
+    expect(writtenConfig.providers.google.whitelist).toContain("antigravity-gemini-3.7-flash");
+    expect(writtenConfig.providers.commandcode).toBeDefined();
+    // No conflicting legacy keys
+    expect(writtenConfig.plugin).toBeUndefined();
+    expect(writtenConfig.provider).toBeUndefined();
+  });
+
+  test("does not duplicate plugin in native plural plugins array", async () => {
+    const existingConfig = {
+      plugins: ["opencode-antigravity-auth@2.0.0"],
+      providers: {},
+    };
+    fs.writeFileSync(configPath, JSON.stringify(existingConfig));
+
+    const result = await updateOpencodeConfig({ configPath });
+    expect(result.success).toBe(true);
+
+    const writtenConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    const count = writtenConfig.plugins.filter(
+      (p: string) => p.includes("opencode-antigravity-auth")
+    ).length;
+    expect(count).toBe(1);
+    expect(writtenConfig.plugins).toContain("opencode-antigravity-auth@2.0.0");
+    expect(writtenConfig.plugin).toBeUndefined();
   });
 
   test("parses existing jsonc config files with comments and trailing commas", async () => {

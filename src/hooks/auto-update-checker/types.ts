@@ -4,7 +4,10 @@ export interface NpmDistTags {
 }
 
 export interface OpencodeConfig {
+  /** Legacy singular plugin list (OpenCode v1). */
   plugin?: string[];
+  /** Native plural plugin list (OpenCode v2). */
+  plugins?: string[];
   [key: string]: unknown;
 }
 

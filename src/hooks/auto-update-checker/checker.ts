@@ -12,6 +12,20 @@ import {
 } from "./constants";
 import { logAutoUpdate } from "./logging";
 
+/**
+ * Reads the plugin list from either the legacy singular `plugin` key
+ * (OpenCode v1) or the native plural `plugins` key (OpenCode v2).
+ */
+function readPluginEntries(config: OpencodeConfig): string[] {
+  if (Array.isArray(config.plugins)) {
+    return config.plugins.filter((entry): entry is string => typeof entry === "string");
+  }
+  if (Array.isArray(config.plugin)) {
+    return config.plugin.filter((entry): entry is string => typeof entry === "string");
+  }
+  return [];
+}
+
 export function isLocalDevMode(directory: string): boolean {
   return getLocalDevPath(directory) !== null;
 }
@@ -38,7 +52,7 @@ export function getLocalDevPath(directory: string): string | null {
       if (!fs.existsSync(configPath)) continue;
       const content = fs.readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsonComments(content)) as OpencodeConfig;
-      const plugins = config.plugin ?? [];
+      const plugins = readPluginEntries(config);
 
       for (const entry of plugins) {
         if (entry.startsWith("file://") && entry.includes(PACKAGE_NAME)) {
@@ -111,7 +125,7 @@ export function findPluginEntry(directory: string): PluginEntryInfo | null {
       if (!fs.existsSync(configPath)) continue;
       const content = fs.readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsonComments(content)) as OpencodeConfig;
-      const plugins = config.plugin ?? [];
+      const plugins = readPluginEntries(config);
 
       for (const entry of plugins) {
         if (entry === PACKAGE_NAME) {
@@ -165,9 +179,9 @@ export function updatePinnedVersion(configPath: string, oldEntry: string, newVer
     const content = fs.readFileSync(configPath, "utf-8");
     const newEntry = `${PACKAGE_NAME}@${newVersion}`;
 
-    const pluginMatch = content.match(/"plugin"\s*:\s*\[/);
+    const pluginMatch = content.match(/"(plugins?)"\s*:\s*\[/);
     if (!pluginMatch || pluginMatch.index === undefined) {
-      logAutoUpdate(`No "plugin" array found in ${configPath}`);
+      logAutoUpdate(`No "plugin"/"plugins" array found in ${configPath}`);
       return false;
     }
 
@@ -205,7 +219,7 @@ export function updatePinnedVersion(configPath: string, oldEntry: string, newVer
     logAutoUpdate(`Updated ${configPath}: ${oldEntry} → ${newEntry}`);
     return true;
   } catch (err) {
-    console.error(`[auto-update-checker] Failed to update config file ${configPath}:`, err);
+    logAutoUpdate(`Failed to update config file ${configPath}: ${err instanceof Error ? err.message : String(err)}`);
     return false;
   }
 }

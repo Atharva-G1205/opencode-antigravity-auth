@@ -10,6 +10,8 @@ import { loadConfig, initRuntimeConfig } from "../plugin/config";
 import { loadAccounts, saveAccounts } from "../plugin/storage";
 import { AccountManager, computeSoftQuotaCacheTtlMs } from "../plugin/accounts";
 import { refreshAccessToken } from "../plugin/token";
+import { formatRefreshParts, accessTokenExpired } from "../plugin/auth";
+import { resolveCachedAuth } from "../plugin/cache";
 import { executeSearch } from "../plugin/search";
 import { createLogger } from "../plugin/logger";
 import { ANTIGRAVITY_PROVIDER_ID } from "../constants";
@@ -17,6 +19,41 @@ import { prepareAntigravityRequest, transformAntigravityResponse, isGenerativeLa
 import { OPENCODE_MODEL_DEFINITIONS } from "../plugin/config/models";
 import { updateOpencodeConfig } from "../plugin/config/updater";
 const log = createLogger("v2-adapter");
+const MOCK_CLIENT = { tui: { showToast: async () => { } } };
+/**
+ * Resolves a valid access token for an account, reusing the shared auth cache
+ * (keyed by the packed refresh string) so we do not hit Google's OAuth endpoint
+ * on every single model request. Only refreshes when the cached token is
+ * missing or within the expiry buffer.
+ */
+async function getAccessToken(account) {
+    const packedRefresh = formatRefreshParts({
+        refreshToken: account.refreshToken,
+        projectId: account.projectId,
+        managedProjectId: account.managedProjectId,
+    });
+    const mockAuth = {
+        type: "oauth",
+        refresh: packedRefresh,
+        access: "",
+        expires: 0,
+    };
+    const resolved = resolveCachedAuth(mockAuth);
+    if (resolved.access && !accessTokenExpired(resolved)) {
+        return resolved.access;
+    }
+    try {
+        const refreshed = await refreshAccessToken(mockAuth, MOCK_CLIENT, ANTIGRAVITY_PROVIDER_ID);
+        if (refreshed?.access && !accessTokenExpired(refreshed)) {
+            return refreshed.access;
+        }
+    }
+    catch (err) {
+        log.warn(`Token refresh error in v2 adapter: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    // Fall back to any (possibly expired) token we already had.
+    return resolved.access || "";
+}
 function resolveFamilyFromRequest(url, bodyText) {
     let modelName = "";
     try {
@@ -69,21 +106,14 @@ async function refreshQuotaCacheForFamily(manager, family) {
     if (!stale)
         return;
     const refresh = (async () => {
-        const mockClient = { tui: { showToast: async () => { } } };
         const active = snapshot.filter((a) => a.enabled !== false);
         const results = await Promise.all(active.map(async (acc) => {
             try {
-                const mockAuth = {
-                    type: "oauth",
-                    refresh: acc.parts.refreshToken,
-                    access: "",
-                    expires: 0,
-                };
-                const refreshed = await refreshAccessToken(mockAuth, mockClient, ANTIGRAVITY_PROVIDER_ID);
-                if (!refreshed?.access)
+                const accessToken = await getAccessToken(acc.parts);
+                if (!accessToken)
                     return null;
                 const projectId = acc.parts.managedProjectId || acc.parts.projectId || "default-cli-project";
-                const resp = await fetchAvailableModels(refreshed.access, projectId);
+                const resp = await fetchAvailableModels(accessToken, projectId);
                 return { index: acc.index, models: (resp.models || {}) };
             }
             catch (e) {
@@ -190,19 +220,12 @@ async function performSearch(query, urls, thinking = true, signal) {
         return "Error: Selected account has no valid credentials.";
     }
     const projectId = primary.managedProjectId || primary.projectId || "default-cli-project";
-    const mockAuth = {
-        type: "oauth",
-        refresh: primary.refreshToken,
-        access: "",
-        expires: 0,
-    };
-    const mockClient = { tui: { showToast: async () => { } } };
     try {
-        const refreshed = await refreshAccessToken(mockAuth, mockClient, ANTIGRAVITY_PROVIDER_ID);
-        if (!refreshed?.access) {
+        const accessToken = await getAccessToken(primary);
+        if (!accessToken) {
             return "Error: Failed to obtain access token for search.";
         }
-        return await executeSearch({ query, urls, thinking }, refreshed.access, projectId, signal);
+        return await executeSearch({ query, urls, thinking }, accessToken, projectId, signal);
     }
     catch (error) {
         return `Search error: ${error instanceof Error ? error.message : String(error)}`;
@@ -217,8 +240,33 @@ export async function setupV2(context) {
     const config = loadConfig(directory);
     initRuntimeConfig(config);
     log.info("Initializing opencode-antigravity-auth in OpenCode v2 mode");
-    const pendingRequests = new Map();
-    const pendingFamily = new Map();
+    const pendingBySession = new Map();
+    const lastFailedMetaBySession = new Map();
+    const MAX_PENDING_PER_SESSION = 32;
+    const PENDING_MAX_AGE_MS = 10 * 60 * 1000;
+    const enqueuePending = (sessionID, entry) => {
+        const queue = pendingBySession.get(sessionID) ?? [];
+        const cutoff = Date.now() - PENDING_MAX_AGE_MS;
+        while (queue.length > 0 && queue[0].createdAt < cutoff) {
+            queue.shift();
+        }
+        queue.push(entry);
+        if (queue.length > MAX_PENDING_PER_SESSION) {
+            queue.shift();
+        }
+        pendingBySession.set(sessionID, queue);
+    };
+    const peekPending = (sessionID) => pendingBySession.get(sessionID)?.[0];
+    const dequeuePending = (sessionID) => {
+        const queue = pendingBySession.get(sessionID);
+        if (!queue || queue.length === 0)
+            return undefined;
+        const entry = queue.shift();
+        if (queue.length === 0) {
+            pendingBySession.delete(sessionID);
+        }
+        return entry;
+    };
     // 1. Session hooks: Native HTTP request/response pipeline and multi-account retry
     if (context.session && typeof context.session.hook === "function") {
         // Intercept outbound HTTP requests to Google Cloud Code
@@ -266,9 +314,12 @@ export async function setupV2(context) {
                         `3. Agrega otra cuenta ejecutando 'opencode auth login' o espera el reseteo (~${waitTimeFormatted}).`;
                     log.warn(`[v2 routing] All accounts blocked for ${family}. Early terminating with structured error response.`);
                     // Intercept request to stop SessionRunner from hanging by returning synthetic response in http.response
-                    pendingRequests.set(event.sessionID, {
-                        blockedEarly: true,
-                        userMessage,
+                    enqueuePending(event.sessionID ?? "default", {
+                        prepared: {
+                            blockedEarly: true,
+                            userMessage,
+                        },
+                        createdAt: Date.now(),
                     });
                     return;
                 }
@@ -291,20 +342,12 @@ export async function setupV2(context) {
                 await saveAccounts(storage).catch(() => { });
             }
             log.info(`[v2 routing] Selected account idx=${activeIndex} (${account.email || "unknown"}) for family=${family} model=${modelName || "default"}`);
-            const mockAuth = {
-                type: "oauth",
-                refresh: account.refreshToken,
-                access: "",
-                expires: 0,
-            };
-            const mockClient = { tui: { showToast: async () => { } } };
             let accessToken = "";
             try {
-                const refreshed = await refreshAccessToken(mockAuth, mockClient, ANTIGRAVITY_PROVIDER_ID);
-                accessToken = refreshed?.access || "";
+                accessToken = await getAccessToken(account);
             }
             catch (err) {
-                log.warn(`Token refresh error in v2 adapter: ${err}`);
+                log.warn(`Token resolution error in v2 adapter: ${err instanceof Error ? err.message : String(err)}`);
             }
             const headers = new Headers(event.request.headers);
             if (accessToken) {
@@ -315,16 +358,22 @@ export async function setupV2(context) {
                 headers,
                 body: bodyText,
             }, accessToken, account.managedProjectId || account.projectId || "default-cli-project", undefined, "antigravity");
-            pendingRequests.set(event.sessionID, prepared);
-            pendingFamily.set(event.sessionID, { family, accountIndex: activeIndex });
+            enqueuePending(event.sessionID ?? "default", {
+                prepared,
+                family,
+                accountIndex: activeIndex,
+                createdAt: Date.now(),
+            });
             event.request = new Request(prepared.request, prepared.init);
         });
         // Transform inbound SSE responses and extract thinking tokens
         await context.session.hook("http.response", async (event) => {
-            const prepared = pendingRequests.get(event.sessionID);
-            if (!prepared) {
+            const sessionKey = event.sessionID ?? "default";
+            const entry = dequeuePending(sessionKey);
+            if (!entry || !entry.prepared) {
                 return;
             }
+            const prepared = entry.prepared;
             if (prepared.blockedEarly) {
                 event.response = new Response(JSON.stringify({
                     error: {
@@ -340,11 +389,12 @@ export async function setupV2(context) {
                         "x-should-retry": "false",
                     },
                 });
-                pendingRequests.delete(event.sessionID);
                 return;
             }
             // Mark account as used or rate-limited on response arrival
-            const meta = pendingFamily.get(event.sessionID);
+            const meta = entry.family !== undefined && entry.accountIndex !== undefined
+                ? { family: entry.family, accountIndex: entry.accountIndex }
+                : undefined;
             const isRateLimitedOrQuota = event.response && (event.response.status === 429 || event.response.status === 403);
             if (meta !== undefined) {
                 try {
@@ -421,10 +471,8 @@ export async function setupV2(context) {
                 log.warn(`Response transform error in v2 adapter: ${error}`);
             }
             finally {
-                pendingRequests.delete(event.sessionID);
-                // Only delete pendingFamily if request succeeded; keep it if failed so hook("retry") can inspect it
-                if (event.response?.ok) {
-                    pendingFamily.delete(event.sessionID);
+                if (!event.response?.ok && meta) {
+                    lastFailedMetaBySession.set(sessionKey, meta);
                 }
             }
         });
@@ -439,8 +487,15 @@ export async function setupV2(context) {
                 message.includes("stream") ||
                 message.includes("eof") ||
                 message.includes("quota exceeded");
-            const meta = pendingFamily.get(event.sessionID);
-            pendingFamily.delete(event.sessionID);
+            const sessionKey = event.sessionID ?? "default";
+            let meta = lastFailedMetaBySession.get(sessionKey);
+            lastFailedMetaBySession.delete(sessionKey);
+            if (!meta) {
+                const pending = dequeuePending(sessionKey);
+                if (pending?.family !== undefined && pending?.accountIndex !== undefined) {
+                    meta = { family: pending.family, accountIndex: pending.accountIndex };
+                }
+            }
             if (!isRotatable)
                 return;
             const storage = await loadAccounts();
@@ -649,7 +704,8 @@ export async function setupV2(context) {
     }
     // Return clean disposal function
     return () => {
-        pendingRequests.clear();
+        pendingBySession.clear();
+        lastFailedMetaBySession.clear();
         log.info("Cleaning up opencode-antigravity-auth v2 adapter");
     };
 }

@@ -1423,7 +1423,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
       try {
         const storage = await loadAccounts();
         if (!storage || !storage.accounts || storage.accounts.length === 0) {
-          return "❌ Error: No Google Antigravity accounts found in configuration. Please run `opencode auth login` first.";
+          return "[ERROR] No Google Antigravity accounts found in configuration. Please run `opencode auth login` first.";
         }
 
         const quotaResults = await checkAccountsQuota(storage.accounts, client, providerId);
@@ -1706,7 +1706,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                   `• Wait ~${waitTimeFormatted} for quota to reset and retry.`;
 
                 await showToast(
-                  `⛔ All accounts blocked for ${family}. Switch model or wait for reset.`,
+                  `[BLOCKED] All accounts blocked for ${family}. Switch model or wait for reset.`,
                   "error"
                 );
                 
@@ -2271,7 +2271,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                     const label = account.email || `Account ${account.index + 1}`;
                     if (accountManager.shouldShowAccountToast(account.index, 60000)) {
                       await showToast(
-                        `⚠ ${label} needs verification. Run 'opencode auth login' and use Verify accounts.`,
+                        `[WARN] ${label} needs verification. Run 'opencode auth login' and use Verify accounts.`,
                         "warning",
                       );
                       accountManager.markToastShown(account.index);
@@ -2319,7 +2319,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                     const label = account.email || `Account ${account.index + 1}`;
                     if (accountManager.shouldShowAccountToast(account.index, 60000)) {
                       await showToast(
-                        `⚠ ${label} requires active Gemini Code Assist subscription (#3501). Switching account...`,
+                        `[WARN] ${label} requires active Gemini Code Assist subscription (#3501). Switching account...`,
                         "warning",
                       );
                       accountManager.markToastShown(account.index);
@@ -2692,7 +2692,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                 menuResult = await promptLoginMode(existingAccounts);
 
                 if (menuResult.mode === "check") {
-                  console.log("\n📊 Checking quotas for all accounts...\n");
+                  console.log("\nChecking quotas for all accounts...\n");
                   const results = await checkAccountsQuota(existingStorage.accounts, client, providerId);
                   let storageUpdated = false;
                   
@@ -2704,7 +2704,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
                     
                     if (res.status === "error") {
-                      console.log(`  ❌ Error: ${res.error}\n`);
+                      console.log(`  [ERROR] ${res.error}\n`);
                       continue;
                     }
 
@@ -2908,9 +2908,9 @@ export const createAntigravityPlugin = (providerId: string) => async (
                     activeAccountManager?.clearAccountVerificationRequired(verifyAccountIndex, wasVerificationRequired);
 
                     if (wasVerificationRequired) {
-                      console.log(`✓ ${label} is ready for requests and has been re-enabled.\n`);
+                      console.log(`[OK] ${label} is ready for requests and has been re-enabled.\n`);
                     } else {
-                      console.log(`✓ ${label} is ready for requests.\n`);
+                      console.log(`[OK] ${label} is ready for requests.\n`);
                     }
                     continue;
                   }
@@ -2931,7 +2931,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                     );
 
                     const verifyUrl = verification.verifyUrl ?? account.verificationUrl;
-                    console.log(`⚠ ${label} needs Google verification before it can be used.`);
+                    console.log(`[WARN] ${label} needs Google verification before it can be used.`);
                     if (verification.message) {
                       console.log(verification.message);
                     }
@@ -2952,7 +2952,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                     continue;
                   }
 
-                  console.log(`✗ ${label}: ${verification.message}\n`);
+                  console.log(`[FAIL] ${label}: ${verification.message}\n`);
                   continue;
                 }
 
@@ -3102,7 +3102,7 @@ export const createAntigravityPlugin = (providerId: string) => async (
                       callbackUrl = await Promise.race([callbackPromise, timeoutPromise]);
                     } catch (err) {
                       if (err instanceof Error && err.message === "SOFT_TIMEOUT") {
-                        console.log("\n⏳ Automatic callback not received after 30 seconds.");
+                        console.log("\nAutomatic callback not received after 30 seconds.");
                         console.log("You can paste the redirect URL manually.\n");
                         console.log("OAuth URL (in case you need it again):");
                         console.log(authorization.url + "\n");

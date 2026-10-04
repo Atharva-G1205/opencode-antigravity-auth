@@ -35,7 +35,7 @@ function formatSearchResult(result) {
     if (result.urlsRetrieved.length > 0) {
         lines.push("### URLs Retrieved");
         for (const url of result.urlsRetrieved) {
-            const status = url.status === "URL_RETRIEVAL_STATUS_SUCCESS" ? "✓" : "✗";
+            const status = url.status === "URL_RETRIEVAL_STATUS_SUCCESS" ? "[OK]" : "[FAIL]";
             lines.push(`- ${status} ${url.url}`);
         }
         lines.push("");

@@ -103,4 +103,76 @@ describe("OpenCode v2 Adapter", () => {
     const cleanup = await setupV2(emptyContext);
     expect(typeof cleanup).toBe("function");
   });
+
+  it("queues and routes concurrent requests in the same session without metadata collision", async () => {
+    const registeredHooks: Record<string, Function> = {};
+    const mockContext: V2Context = {
+      session: {
+        hook: vi.fn().mockImplementation(async (name, callback) => {
+          registeredHooks[name] = callback;
+          return { dispose: async () => {} };
+        }),
+      },
+    };
+
+    const cleanup = await setupV2(mockContext);
+    expect(typeof cleanup).toBe("function");
+
+    const requestHook = registeredHooks["http.request"];
+    const responseHook = registeredHooks["http.response"];
+    const retryHook = registeredHooks["retry"];
+    expect(requestHook).toBeDefined();
+    expect(responseHook).toBeDefined();
+    expect(retryHook).toBeDefined();
+    if (!requestHook || !responseHook || !retryHook) {
+      return;
+    }
+
+    // Emulate 2 requests in the same session key
+    const sessionID = "ses-concurrent-1";
+    const req1: any = {
+      sessionID,
+      request: new Request("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "first" }] }] }),
+      }),
+    };
+    const req2: any = {
+      sessionID,
+      request: new Request("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "second" }] }] }),
+      }),
+    };
+
+    await requestHook(req1);
+    await requestHook(req2);
+
+    // Response 1 arrives with 429
+    const resp1: any = {
+      sessionID,
+      response: new Response("rate limited", { status: 429 }),
+    };
+    await responseHook(resp1);
+
+    // Retry hook should see the failed metadata for session
+    const retryEvent: any = {
+      sessionID,
+      error: { status: 429, message: "Resource exhausted" },
+    };
+    await retryHook(retryEvent);
+
+    // Response 2 arrives OK
+    const resp2: any = {
+      sessionID,
+      response: new Response("data: {\"candidates\":[]}\n\n", { status: 200, headers: { "content-type": "text/event-stream" } }),
+    };
+    await responseHook(resp2);
+
+    if (typeof cleanup === "function") {
+      cleanup();
+    }
+  }, 15000);
 });

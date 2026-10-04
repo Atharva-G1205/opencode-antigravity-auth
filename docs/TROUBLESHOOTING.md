@@ -72,17 +72,17 @@ Add this to your `google` provider config:
 ### Session errors
 Type `continue` to trigger auto-recovery, or use `/undo` to roll back.
 
-### Configuration Key Typo
+### Configuration Key: `plugins` (v2) or `plugin` (v1)
 
-The correct key is `plugin` (singular):
+In OpenCode v2, use the native plural key:
 
 ```json
 {
-  "plugin": ["github:JoshRob297/opencode-antigravity-auth"]
+  "plugins": ["github:JoshRob297/opencode-antigravity-auth"]
 }
 ```
 
-**Not** `"plugins"` (will cause "Unrecognized key" error).
+In OpenCode v1, use the legacy singular key `"plugin"`. The plugin updater and auto-update checker support both transparently.
 
 ### "Invalid SemVer: beta"
 

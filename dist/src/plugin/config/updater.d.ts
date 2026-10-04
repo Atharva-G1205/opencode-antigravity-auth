@@ -10,12 +10,20 @@ export interface UpdateConfigResult {
 }
 export interface OpencodeConfig {
     $schema?: string;
+    /** Legacy singular key (OpenCode v1). */
     plugin?: string[];
-    provider?: {
-        google?: {
-            models?: Record<string, unknown>;
-            [key: string]: unknown;
-        };
+    /** Native plural key (OpenCode v2). */
+    plugins?: string[];
+    /** Legacy singular key (OpenCode v1). */
+    provider?: ProviderSection;
+    /** Native plural key (OpenCode v2). */
+    providers?: ProviderSection;
+    [key: string]: unknown;
+}
+interface ProviderSection {
+    google?: {
+        models?: Record<string, unknown>;
+        whitelist?: string[];
         [key: string]: unknown;
     };
     [key: string]: unknown;
@@ -36,6 +44,14 @@ export declare const ANTIGRAVITY_UPDATE_COMMAND_CONTENT = "---\ndescription: Act
  */
 export declare function ensureAntigravityQuotaCommand(configDir?: string): string;
 /**
+ * OpenCode v2 (2.0+) uses the native plural keys `plugins`/`providers`, while
+ * v1 used the legacy singular `plugin`/`provider`. Detect which form the file
+ * already uses so we mutate it in place instead of introducing a conflicting
+ * key that the runtime would flag as a legacy/native conflict.
+ */
+export declare function resolvePluginKey(config: OpencodeConfig): "plugin" | "plugins";
+export declare function resolveProviderKey(config: OpencodeConfig): "provider" | "providers";
+/**
  * Get the opencode config directory path.
  */
 export declare function getOpencodeConfigDir(): string;
@@ -51,7 +67,9 @@ export declare function getOpencodeConfigPath(): string;
  *
  * This function:
  * 1. Reads existing opencode.json/opencode.jsonc (or creates default structure)
- * 2. Replaces `provider.google.models` with plugin models
+ * 2. Replaces `provider(s).google.models` with plugin models, keeping whichever
+ *    of the legacy singular (`plugin`/`provider`) or native plural
+ *    (`plugins`/`providers`) key form the file already uses
  * 3. Writes back to disk with proper formatting
  *
  * Preserves:
@@ -63,4 +81,5 @@ export declare function getOpencodeConfigPath(): string;
  * @returns UpdateConfigResult with success status and path
  */
 export declare function updateOpencodeConfig(options?: UpdateConfigOptions): Promise<UpdateConfigResult>;
+export {};
 //# sourceMappingURL=updater.d.ts.map
