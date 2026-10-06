@@ -57,6 +57,17 @@ describe("OPENCODE_MODEL_DEFINITIONS", () => {
   it("defines thinking budget variants for Claude thinking models", () => {
     expect(getModel("antigravity-claude-opus-4-6-thinking").variants).toEqual({
       low: { thinkingConfig: { thinkingBudget: 8192 } },
+      medium: { thinkingConfig: { thinkingBudget: 16384 } },
+      high: { thinkingConfig: { thinkingBudget: 24576 } },
+      max: { thinkingConfig: { thinkingBudget: 32768 } },
+    });
+  });
+
+  it("defines (inert) thinking tiers for Claude Sonnet to mirror config intent", () => {
+    expect(getModel("antigravity-claude-sonnet-4-6").variants).toEqual({
+      low: { thinkingConfig: { thinkingBudget: 8192 } },
+      medium: { thinkingConfig: { thinkingBudget: 16384 } },
+      high: { thinkingConfig: { thinkingBudget: 24576 } },
       max: { thinkingConfig: { thinkingBudget: 32768 } },
     });
   });

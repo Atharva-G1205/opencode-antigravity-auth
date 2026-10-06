@@ -809,7 +809,7 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
         description: "Zero-config setup: auto-configures opencode.json with Antigravity models, whitelists, and commands",
         execute: async () => {
           try {
-            const res = await updateOpencodeConfig();
+            const res = await updateOpencodeConfig({ writeLegacyProviderModels: false });
             if (res.success) {
               const storage = await loadAccounts();
               const count = storage?.accounts?.length ?? 0;

@@ -44,6 +44,13 @@ interface ProviderSection {
 export interface UpdateConfigOptions {
   /** Override the config file path (for testing) */
   configPath?: string;
+  /**
+   * Write the legacy v1 `provider(s).google.models` + `whitelist` block.
+   * OpenCode v2 registers the Antigravity models natively via the model transform,
+   * so this legacy block is ignored by v2 and only produces "malformed" warnings.
+   * Default: true (v1 compatible). v2 callers pass false.
+   */
+  writeLegacyProviderModels?: boolean;
 }
 
 // =============================================================================
@@ -248,21 +255,26 @@ export async function updateOpencodeConfig(
       pluginList.push(PLUGIN_NAME);
     }
 
-    // Ensure provider.google structure exists under the resolved key
-    if (!config[providerKey] || typeof config[providerKey] !== "object" || Array.isArray(config[providerKey])) {
-      config[providerKey] = {};
-    }
-    const providerSection = config[providerKey] as ProviderSection;
-    if (!providerSection.google || typeof providerSection.google !== "object") {
-      providerSection.google = {};
-    }
-    const googleSection = providerSection.google;
+    // Legacy v1 block: models + whitelist written into provider(s).google.
+    // In OpenCode v2 this is ignored (models are registered natively via the model
+    // transform), so the v2 caller opts out to avoid "malformed recognized value" warnings.
+    if (options.writeLegacyProviderModels !== false) {
+      // Ensure provider.google structure exists under the resolved key
+      if (!config[providerKey] || typeof config[providerKey] !== "object" || Array.isArray(config[providerKey])) {
+        config[providerKey] = {};
+      }
+      const providerSection = config[providerKey] as ProviderSection;
+      if (!providerSection.google || typeof providerSection.google !== "object") {
+        providerSection.google = {};
+      }
+      const googleSection = providerSection.google;
 
-    // Replace google models with plugin models
-    googleSection.models = { ...OPENCODE_MODEL_DEFINITIONS };
+      // Replace google models with plugin models
+      googleSection.models = { ...OPENCODE_MODEL_DEFINITIONS };
 
-    // Whitelist only official Antigravity models to hide 18+ unauthenticated native Google models
-    googleSection.whitelist = [...OPENCODE_WHITELIST_MODELS];
+      // Whitelist only official Antigravity models to hide 18+ unauthenticated native Google models
+      googleSection.whitelist = [...OPENCODE_WHITELIST_MODELS];
+    }
 
     // Automatically ensure /antigravity-quota command is installed
     ensureAntigravityQuotaCommand(getOpencodeConfigDir());
