@@ -31,6 +31,13 @@ interface ProviderSection {
 export interface UpdateConfigOptions {
     /** Override the config file path (for testing) */
     configPath?: string;
+    /**
+     * Write the legacy v1 `provider(s).google.models` + `whitelist` block.
+     * OpenCode v2 registers the Antigravity models natively via the model transform,
+     * so this legacy block is ignored by v2 and only produces "malformed" warnings.
+     * Default: true (v1 compatible). v2 callers pass false.
+     */
+    writeLegacyProviderModels?: boolean;
 }
 export declare const ANTIGRAVITY_QUOTA_COMMAND_FILENAME = "antigravity-quota.md";
 export declare const ANTIGRAVITY_UPDATE_COMMAND_FILENAME = "antigravity-update.md";

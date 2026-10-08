@@ -7,6 +7,7 @@ describe("OpenCode v2 Adapter", () => {
     async () => {
       const registeredTools: any[] = [];
     const registeredCommands: any[] = [];
+    const registeredMethods: any[] = [];
     const registeredHooks: Record<string, Function> = {};
     const updatedModels: any[] = [];
 
@@ -34,7 +35,8 @@ describe("OpenCode v2 Adapter", () => {
       tool: {
         transform: vi.fn().mockImplementation(async (callback) => {
           const editor = {
-            add: (t: any) => registeredTools.push(t),
+            // Real v2 ToolEditor derives the effective id from the tool name.
+            add: (t: any) => registeredTools.push({ ...t, id: t.name }),
           };
           callback(editor);
           return { dispose: async () => {} };
@@ -44,6 +46,23 @@ describe("OpenCode v2 Adapter", () => {
         transform: vi.fn().mockImplementation(async (callback) => {
           const editor = {
             add: (c: any) => registeredCommands.push(c),
+          };
+          callback(editor);
+          return { dispose: async () => {} };
+        }),
+      },
+      integration: {
+        transform: vi.fn().mockImplementation(async (callback) => {
+          const editor = {
+            list: () => [],
+            get: () => undefined,
+            remove: () => {},
+            update: (_id: string, updater: Function) => updater({ id: "google", name: "Google" }),
+            method: {
+              list: () => [],
+              update: (input: any) => registeredMethods.push(input),
+              remove: () => {},
+            },
           };
           callback(editor);
           return { dispose: async () => {} };
@@ -80,6 +99,16 @@ describe("OpenCode v2 Adapter", () => {
     const gemini38 = updatedModels.find((m) => m.modelId === "antigravity-gemini-3.8-flash");
     expect(gemini38).toBeDefined();
     expect(gemini38?.name).toContain("Gemini 3.8 Flash");
+
+    // Integration OAuth verification (regression guard for issue #30)
+    expect(mockContext.integration?.transform).toHaveBeenCalled();
+    const oauthMethod = registeredMethods.find(
+      (m) => m.method?.type === "oauth" && m.method?.id === "antigravity-oauth",
+    );
+    expect(oauthMethod).toBeDefined();
+    expect(oauthMethod?.integrationID).toBe("google");
+    expect(typeof oauthMethod?.authorize).toBe("function");
+    expect(typeof oauthMethod?.refresh).toBe("function");
 
     // Session hooks verification
     expect(mockContext.session?.hook).toHaveBeenCalledWith("http.request", expect.any(Function));

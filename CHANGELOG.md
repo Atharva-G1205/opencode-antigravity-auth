@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.0.2] - 2026-10-07
+
+### Fixed
+
+- **OpenCode v2 OAuth Integration Registration (Closes #30):** `setupV2` in `src/v2/adapter.ts` now calls `context.integration.transform` to register the `google` Antigravity OAuth method (`id: antigravity-oauth`, `type: oauth`, `authorize`/`refresh`/`label`). Previously the v2 path only registered session/model/tool/command transforms, so `opencode auth login` (and the TUI connect flow) only offered the core API-key method and never the Google OAuth option. Implements the native V2 `IntegrationOAuthMethodRegistration` contract (`authorize` returns `mode: "code"` with the Google consent URL; the code callback exchanges PKCE and returns a `Credential.OAuth`).
+- **Multi-Account Pool Wiring in v2:** Every successful v2 OAuth authorization is now persisted through `persistAccountPool` (exported from `src/plugin.ts`) so new accounts are appended/deduplicated into `antigravity-accounts.json` and picked up by the rotation engine. The connection label shows the Google account email.
+- **v2 Model Catalog Registration Correctness:** Removed the non-existent `ModelEditor.add` branch. Models are now registered through the real `editor.update("google", modelID, draft => ...)` path (which seeds `Model.Info.default` and adds the model under an available provider). Drafts now set `enabled`, `capabilities` (from modalities) and map variants to the real `Model.Variant` shape (`{ id, settings }`) instead of the previous invalid `{ id, ...thinkingLevel }` object.
+- **v2 Tool Registration Shape:** `ToolEditor.add` no longer receives a bogus `id` field; the effective tool id is derived from `name` as OpenCode v2 expects.
+- **v2 Slash Commands Now Deliver Output:** `CommandDefinition.execute` receives `{ sessionID, prompt, delivery }` and must deliver its own output - returning a string was silently ignored. `/antigravity-quota`, `/antigravity-stats` and `/antigravity-setup` now admit a synthetic session message with the report (no model turn triggered).
+- **Accurate v2 Type Contracts:** Replaced the hand-rolled `V2Context` with typed local contracts that mirror `@opencode/plugin@2.0.24` (`IntegrationEditor`/`IntegrationMethodRegistration`, `ModelEditor`, `ToolEditor`, `CommandEditor`, `SessionDomain`) without adding a runtime dependency.
+
+### Added
+
+- **Regression Test for v2 OAuth Integration:** `src/v2/adapter.test.ts` now asserts the `google` OAuth method (`antigravity-oauth`) is registered during `setupV2`.
+
 ## [2.0.1] - 2026-10-03
 
 ### Fixed

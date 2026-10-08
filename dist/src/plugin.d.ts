@@ -1,7 +1,11 @@
 import { type HeaderStyle } from "./constants";
+import type { AntigravityTokenExchangeResult } from "./antigravity/oauth";
 import { type ModelFamily } from "./plugin/accounts";
 import { type AntigravityConfig } from "./plugin/config";
 import type { PluginContext, PluginResult } from "./plugin/types";
+export declare function persistAccountPool(results: Array<Extract<AntigravityTokenExchangeResult, {
+    type: "success";
+}>>, replaceAll?: boolean): Promise<void>;
 /**
  * Creates an Antigravity OAuth plugin for a specific provider ID.
  */

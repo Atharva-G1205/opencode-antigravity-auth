@@ -184,19 +184,24 @@ export async function updateOpencodeConfig(options = {}) {
         if (!hasPlugin) {
             pluginList.push(PLUGIN_NAME);
         }
-        // Ensure provider.google structure exists under the resolved key
-        if (!config[providerKey] || typeof config[providerKey] !== "object" || Array.isArray(config[providerKey])) {
-            config[providerKey] = {};
+        // Legacy v1 block: models + whitelist written into provider(s).google.
+        // In OpenCode v2 this is ignored (models are registered natively via the model
+        // transform), so the v2 caller opts out to avoid "malformed recognized value" warnings.
+        if (options.writeLegacyProviderModels !== false) {
+            // Ensure provider.google structure exists under the resolved key
+            if (!config[providerKey] || typeof config[providerKey] !== "object" || Array.isArray(config[providerKey])) {
+                config[providerKey] = {};
+            }
+            const providerSection = config[providerKey];
+            if (!providerSection.google || typeof providerSection.google !== "object") {
+                providerSection.google = {};
+            }
+            const googleSection = providerSection.google;
+            // Replace google models with plugin models
+            googleSection.models = { ...OPENCODE_MODEL_DEFINITIONS };
+            // Whitelist only official Antigravity models to hide 18+ unauthenticated native Google models
+            googleSection.whitelist = [...OPENCODE_WHITELIST_MODELS];
         }
-        const providerSection = config[providerKey];
-        if (!providerSection.google || typeof providerSection.google !== "object") {
-            providerSection.google = {};
-        }
-        const googleSection = providerSection.google;
-        // Replace google models with plugin models
-        googleSection.models = { ...OPENCODE_MODEL_DEFINITIONS };
-        // Whitelist only official Antigravity models to hide 18+ unauthenticated native Google models
-        googleSection.whitelist = [...OPENCODE_WHITELIST_MODELS];
         // Automatically ensure /antigravity-quota command is installed
         ensureAntigravityQuotaCommand(getOpencodeConfigDir());
         // Ensure config directory exists

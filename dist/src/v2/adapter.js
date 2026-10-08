@@ -10,7 +10,9 @@ import { loadConfig, initRuntimeConfig } from "../plugin/config";
 import { loadAccounts, saveAccounts } from "../plugin/storage";
 import { AccountManager, computeSoftQuotaCacheTtlMs } from "../plugin/accounts";
 import { refreshAccessToken } from "../plugin/token";
-import { formatRefreshParts, accessTokenExpired } from "../plugin/auth";
+import { formatRefreshParts, parseRefreshParts, accessTokenExpired } from "../plugin/auth";
+import { persistAccountPool } from "../plugin";
+import { authorizeAntigravity, exchangeAntigravity } from "../antigravity/oauth";
 import { resolveCachedAuth } from "../plugin/cache";
 import { executeSearch } from "../plugin/search";
 import { createLogger } from "../plugin/logger";
@@ -523,66 +525,155 @@ export async function setupV2(context) {
             event.decision = { retry: true, delay: 500 };
         });
     }
-    // 2. Model catalog transforms in OpenCode v2
+    // 1.5 Integration registration: exposes the Antigravity Google OAuth method in
+    // OpenCode v2 (`opencode auth login` / TUI connect) and persists every newly
+    // authorized account into the plugin's multi-account pool so rotation picks it up.
+    if (context.integration && typeof context.integration.transform === "function") {
+        await context.integration.transform((editor) => {
+            // Ensure the integration is present and human-readable before adding methods.
+            editor.update("google", (integration) => {
+                if (!integration.name)
+                    integration.name = "Google";
+            });
+            editor.method.update({
+                integrationID: "google",
+                method: {
+                    id: "antigravity-oauth",
+                    type: "oauth",
+                    label: "OAuth with Google (Antigravity)",
+                },
+                authorize: async () => {
+                    const authorization = await authorizeAntigravity("");
+                    // Capture state (PKCE verifier + project id) so the code callback is stateless.
+                    let capturedState = "";
+                    try {
+                        capturedState = new URL(authorization.url).searchParams.get("state") ?? "";
+                    }
+                    catch {
+                        capturedState = "";
+                    }
+                    return {
+                        mode: "code",
+                        url: authorization.url,
+                        instructions: "Sign in with Google, approve Antigravity access, then paste the full redirected localhost URL (or just the authorization code).",
+                        callback: async (input) => {
+                            let code = (input ?? "").trim();
+                            let state = capturedState;
+                            try {
+                                const parsed = new URL(code);
+                                code = parsed.searchParams.get("code") ?? code;
+                                state = parsed.searchParams.get("state") ?? state;
+                            }
+                            catch {
+                                // Raw code pasted without the redirect URL is fine.
+                            }
+                            if (!code) {
+                                throw new Error("Missing authorization code");
+                            }
+                            if (!state) {
+                                throw new Error("Missing OAuth state; paste the full redirect URL instead of only the code.");
+                            }
+                            const result = await exchangeAntigravity(code, state);
+                            if (result.type !== "success") {
+                                let detail = result.error || "Antigravity token exchange failed";
+                                try {
+                                    const parsed = JSON.parse(detail);
+                                    detail = parsed.error_description || parsed.error || detail;
+                                }
+                                catch {
+                                    // keep raw text
+                                }
+                                throw new Error(detail);
+                            }
+                            // Merge into the multi-account pool used by the v2 rotation engine.
+                            await persistAccountPool([result], false).catch((e) => {
+                                log.warn(`Failed to persist Antigravity account: ${e instanceof Error ? e.message : String(e)}`);
+                            });
+                            const parts = parseRefreshParts(result.refresh);
+                            return {
+                                type: "oauth",
+                                methodID: "antigravity-oauth",
+                                refresh: formatRefreshParts(parts),
+                                access: result.access,
+                                expires: result.expires,
+                                metadata: {
+                                    ...(result.email ? { email: result.email } : {}),
+                                    ...(result.projectId ? { projectId: result.projectId } : {}),
+                                },
+                            };
+                        },
+                    };
+                },
+                refresh: async (credential) => {
+                    const parts = parseRefreshParts(credential?.refresh ?? "");
+                    if (!parts.refreshToken) {
+                        throw new Error("Missing refresh token for Antigravity credential");
+                    }
+                    const mockAuth = {
+                        type: "oauth",
+                        refresh: formatRefreshParts(parts),
+                        access: credential?.access ?? "",
+                        expires: typeof credential?.expires === "number" ? credential.expires : 0,
+                    };
+                    const refreshed = await refreshAccessToken(mockAuth, MOCK_CLIENT, ANTIGRAVITY_PROVIDER_ID);
+                    if (!refreshed?.access) {
+                        throw new Error("Failed to refresh Antigravity access token");
+                    }
+                    return {
+                        ...credential,
+                        access: refreshed.access,
+                        expires: refreshed.expires ?? credential.expires,
+                        refresh: refreshed.refresh ?? credential.refresh,
+                    };
+                },
+                label: (credential) => typeof credential?.metadata?.email === "string" ? credential.metadata.email : undefined,
+            });
+        });
+    }
+    // 2. Model catalog transforms in OpenCode v2.
+    // The v2 ModelEditor exposes only list/get/update/remove/default/provider.
+    // `update(providerID, modelID, draft => ...)` seeds `Model.Info.default`
+    // when the model is absent and adds it under an available provider, which is
+    // exactly what we need: the `google` provider becomes available once the
+    // Antigravity OAuth integration has at least one connection (section 1.5).
     if (context.model && typeof context.model.transform === "function") {
         await context.model.transform((editor) => {
             for (const [modelId, def] of Object.entries(OPENCODE_MODEL_DEFINITIONS)) {
                 try {
-                    // If model already exists in editor (e.g. from opencode.json or base provider), update it
-                    let updated = false;
-                    if (typeof editor.update === "function") {
-                        try {
-                            editor.update("google", modelId, (draft) => {
-                                draft.name = def.name;
-                                draft.limit = def.limit;
-                                draft.status = "active";
-                                if (def.variants) {
-                                    draft.variants = Object.entries(def.variants).map(([vId, vOpt]) => ({
-                                        id: vId,
-                                        ...vOpt,
-                                    }));
-                                }
-                                updated = true;
-                            });
+                    editor.update("google", modelId, (draft) => {
+                        draft.name = def.name;
+                        draft.enabled = true;
+                        draft.status = "active";
+                        draft.limit = { context: def.limit.context, output: def.limit.output };
+                        draft.capabilities = {
+                            tools: true,
+                            input: [...def.modalities.input],
+                            output: [...def.modalities.output],
+                        };
+                        if (def.variants) {
+                            // v2 Model.Variant = { id, settings?, headers?, body? }. Thinking
+                            // config rides in `settings`, which OpenCode forwards as provider
+                            // options (the request transform reads providerOptions.google.*).
+                            draft.variants = Object.entries(def.variants).map(([vId, vOpt]) => ({
+                                id: vId,
+                                settings: { ...vOpt },
+                            }));
                         }
-                        catch {
-                            updated = false;
-                        }
-                    }
-                    // If not updated and editor.add is available, auto-register it directly
-                    if (!updated && typeof editor.add === "function") {
-                        try {
-                            editor.add({
-                                providerID: "google",
-                                id: modelId,
-                                name: def.name,
-                                limit: def.limit,
-                                status: "active",
-                                variants: def.variants
-                                    ? Object.entries(def.variants).map(([vId, vOpt]) => ({
-                                        id: vId,
-                                        ...vOpt,
-                                    }))
-                                    : undefined,
-                            });
-                        }
-                        catch {
-                            // Ignore if provider structure differs
-                        }
-                    }
+                    });
                 }
-                catch {
-                    // Model might not be pre-seeded; safe to ignore
+                catch (error) {
+                    log.warn(`[v2] Failed to register model ${modelId}: ${error instanceof Error ? error.message : String(error)}`);
                 }
             }
         });
     }
-    // 3. Register tools in OpenCode v2 tool registry
+    // 3. Register tools in OpenCode v2 tool registry.
+    // v2 ToolEditor.add takes a definition whose effective name is derived from
+    // `name` (there is no `id` field); execute returns structured Tool.Result.
     if (context.tool && typeof context.tool.transform === "function") {
         await context.tool.transform((editor) => {
             // antigravity_quota tool
             editor.add({
-                id: "antigravity_quota",
                 name: "antigravity_quota",
                 description: "Check Antigravity quota (5h and weekly windows) across all configured Google accounts",
                 input: {
@@ -602,7 +693,6 @@ export async function setupV2(context) {
             });
             // google_search tool
             editor.add({
-                id: "google_search",
                 name: "google_search",
                 description: "Search the web using Google Search and analyze URLs",
                 input: {
@@ -627,7 +717,6 @@ export async function setupV2(context) {
             });
             // antigravity_stats tool
             editor.add({
-                id: "antigravity_stats",
                 name: "antigravity_stats",
                 description: "View real-time engine statistics: request counts, account health scores, rate limit tracking, and signature cache performance",
                 input: {
@@ -648,55 +737,71 @@ export async function setupV2(context) {
             });
         });
     }
-    // 4. Register slash commands in OpenCode v2
+    // 4. Register slash commands in OpenCode v2.
+    // v2 CommandDefinition.execute receives the owning session and must deliver
+    // its own output (a returned string is ignored). We admit a synthetic message
+    // so the report renders in the transcript without triggering a model turn.
     if (context.command && typeof context.command.transform === "function") {
+        const deliver = async (sessionID, text, delivery) => {
+            if (!sessionID || !context.session || typeof context.session.synthetic !== "function") {
+                log.info(`[v2 command] ${text}`);
+                return;
+            }
+            try {
+                await context.session.synthetic({ sessionID, text });
+            }
+            catch (error) {
+                log.warn(`[v2 command] Failed to deliver output: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        };
         await context.command.transform((editor) => {
             editor.add({
                 name: "antigravity-quota",
                 description: "View current Antigravity API quotas across accounts",
-                execute: async () => {
+                execute: async ({ sessionID, delivery }) => {
                     try {
-                        return await getQuotaReport();
+                        await deliver(sessionID, await getQuotaReport(), delivery);
                     }
                     catch (error) {
-                        return `Error: ${error instanceof Error ? error.message : String(error)}`;
+                        await deliver(sessionID, `Error: ${error instanceof Error ? error.message : String(error)}`, delivery);
                     }
                 },
             });
             editor.add({
                 name: "antigravity-stats",
                 description: "View real-time engine statistics (request counts, health scores, and signature cache)",
-                execute: async () => {
+                execute: async ({ sessionID, delivery }) => {
                     try {
                         const storage = await loadAccounts();
                         const activeAcc = storage?.accounts?.[storage.activeIndex]?.email;
-                        return EngineStatsManager.getInstance().formatStatsReport(activeAcc);
+                        await deliver(sessionID, EngineStatsManager.getInstance().formatStatsReport(activeAcc), delivery);
                     }
                     catch (error) {
-                        return `Error: ${error instanceof Error ? error.message : String(error)}`;
+                        await deliver(sessionID, `Error: ${error instanceof Error ? error.message : String(error)}`, delivery);
                     }
                 },
             });
             editor.add({
                 name: "antigravity-setup",
                 description: "Zero-config setup: auto-configures opencode.json with Antigravity models, whitelists, and commands",
-                execute: async () => {
+                execute: async ({ sessionID, delivery }) => {
                     try {
-                        const res = await updateOpencodeConfig();
+                        const res = await updateOpencodeConfig({ writeLegacyProviderModels: false });
                         if (res.success) {
                             const storage = await loadAccounts();
                             const count = storage?.accounts?.length ?? 0;
                             const accountList = count > 0
                                 ? storage.accounts.map((a, i) => `  ${i + 1}. ${a.email || "Account " + (i + 1)}`).join("\n")
                                 : "  (Sin cuentas configuradas todavía - ejecuta `opencode auth login` para agregar una)";
-                            return `Antigravity configurado con éxito en: ${res.configPath}\n\nCuentas activas (${count}):\n${accountList}\n\nModelos disponibles:\n• google/antigravity-gemini-3.8-flash (default)\n• google/antigravity-gemini-3.7-flash\n• google/antigravity-gemini-3.6-flash\n• google/antigravity-gemini-3.1-pro\n• google/antigravity-claude-sonnet-4-6\n• google/antigravity-claude-opus-4-6-thinking\n• google/antigravity-gpt-oss-120b-medium`;
+                            const report = `Antigravity configurado con éxito en: ${res.configPath}\n\nCuentas activas (${count}):\n${accountList}\n\nModelos disponibles:\n• google/antigravity-gemini-3.8-flash (default)\n• google/antigravity-gemini-3.7-flash\n• google/antigravity-gemini-3.6-flash\n• google/antigravity-gemini-3.1-pro\n• google/antigravity-claude-sonnet-4-6\n• google/antigravity-claude-opus-4-6-thinking\n• google/antigravity-gpt-oss-120b-medium`;
+                            await deliver(sessionID, report, delivery);
                         }
                         else {
-                            return `Error al configurar: ${res.error}`;
+                            await deliver(sessionID, `Error al configurar: ${res.error}`, delivery);
                         }
                     }
                     catch (error) {
-                        return `Error: ${error instanceof Error ? error.message : String(error)}`;
+                        await deliver(sessionID, `Error: ${error instanceof Error ? error.message : String(error)}`, delivery);
                     }
                 },
             });

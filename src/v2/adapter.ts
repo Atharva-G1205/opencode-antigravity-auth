@@ -11,7 +11,9 @@ import { loadConfig, initRuntimeConfig } from "../plugin/config";
 import { loadAccounts, saveAccounts, type ModelFamily } from "../plugin/storage";
 import { AccountManager, computeSoftQuotaCacheTtlMs } from "../plugin/accounts";
 import { refreshAccessToken } from "../plugin/token";
-import { formatRefreshParts, accessTokenExpired } from "../plugin/auth";
+import { formatRefreshParts, parseRefreshParts, accessTokenExpired } from "../plugin/auth";
+import { persistAccountPool } from "../plugin";
+import { authorizeAntigravity, exchangeAntigravity, type AntigravityTokenExchangeResult } from "../antigravity/oauth";
 import { resolveCachedAuth } from "../plugin/cache";
 import { executeSearch } from "../plugin/search";
 import { createLogger } from "../plugin/logger";
@@ -209,26 +211,189 @@ async function refreshQuotaCacheForFamily(manager: AccountManager, family: Model
   }
 }
 
+/**
+ * OpenCode v2 domain contracts (2.0.x / @opencode/plugin 2.0.24).
+ *
+ * These are intentionally declared locally (no runtime dependency on
+ * `@opencode/plugin`) so the plugin keeps loading from a plain directory or git
+ * install without pulling Effect/@opencode/client into the tree. Shapes mirror
+ * `@opencode/plugin/dist/promise/*.d.ts`.
+ */
+
+export interface V2Registration {
+  dispose: () => Promise<void>;
+}
+
+export interface V2LocationInfo {
+  readonly directory?: string;
+  readonly workspaceID?: string;
+  readonly project?: { readonly id?: string; readonly directory?: string; readonly canonical?: string };
+}
+
+/** Credential stored by OpenCode core after an OAuth authorization. */
+export interface V2OAuthCredential {
+  type: "oauth";
+  methodID: string;
+  refresh: string;
+  access: string;
+  expires: number;
+  metadata?: Record<string, unknown>;
+}
+
+export type V2OAuthAuthorization = {
+  readonly url: string;
+  readonly instructions: string;
+  readonly expiresAt?: number;
+} & (
+  | { readonly mode: "auto"; readonly callback: Promise<V2OAuthCredential> }
+  | { readonly mode: "code"; readonly callback: (code: string) => Promise<V2OAuthCredential> }
+);
+
+export interface V2IntegrationRef {
+  id: string;
+  name: string;
+}
+
+export type V2IntegrationMethod =
+  | { readonly id: string; readonly type: "oauth"; readonly label: string; readonly form?: unknown }
+  | { readonly id: string; readonly type: "command"; readonly label: string; readonly command: ReadonlyArray<string> }
+  | { readonly type: "key"; readonly label?: string; readonly form?: unknown }
+  | { readonly type: "env"; readonly names: ReadonlyArray<string> };
+
+export type V2IntegrationMethodRegistration =
+  | {
+      readonly integrationID: string;
+      readonly method: { readonly id: string; readonly type: "oauth"; readonly label: string; readonly form?: unknown };
+      readonly authorize: (answer: Record<string, unknown>) => Promise<V2OAuthAuthorization>;
+      readonly refresh?: (credential: V2OAuthCredential) => Promise<V2OAuthCredential>;
+      readonly label?: (credential: V2OAuthCredential) => string | undefined;
+    }
+  | { readonly integrationID: string; readonly method: { readonly id: string; readonly type: "command"; readonly label: string; readonly command: ReadonlyArray<string> } }
+  | { readonly integrationID: string; readonly method: { readonly type: "key"; readonly label?: string; readonly form?: unknown } }
+  | { readonly integrationID: string; readonly method: { readonly type: "env"; readonly names: ReadonlyArray<string> } };
+
+export interface V2IntegrationEditor {
+  list(): readonly V2IntegrationRef[];
+  get(id: string): V2IntegrationRef | undefined;
+  update(id: string, update: (integration: { id: string; name: string }) => void): void;
+  remove(id: string): void;
+  readonly method: {
+    list(integrationID: string): readonly V2IntegrationMethod[];
+    update(input: V2IntegrationMethodRegistration): void;
+    remove(integrationID: string, method: V2IntegrationMethod): void;
+  };
+}
+
+export interface V2ModelVariant {
+  id: string;
+  settings?: Record<string, unknown>;
+  headers?: Record<string, string>;
+  body?: Record<string, unknown>;
+}
+
+export interface V2ModelDraft {
+  id: string;
+  modelID: string;
+  providerID: string;
+  name: string;
+  status: "alpha" | "beta" | "deprecated" | "active";
+  enabled: boolean;
+  limit: { context: number; input?: number; output: number };
+  capabilities: { tools: boolean; input: string[]; output: string[] };
+  variants: V2ModelVariant[];
+  [key: string]: unknown;
+}
+
+export interface V2ModelEditor {
+  list(providerID?: string): readonly V2ModelDraft[];
+  get(providerID: string, modelID: string): V2ModelDraft | undefined;
+  /** Edits raw model overrides; adds a model only under an available provider. */
+  update(providerID: string, modelID: string, update: (model: V2ModelDraft) => void): void;
+  remove(providerID: string, modelID: string): void;
+  readonly default: {
+    get(): { providerID: string; modelID: string } | undefined;
+    set(providerID: string, modelID: string): void;
+  };
+  readonly provider: {
+    list(): readonly { readonly provider: { readonly id: string } }[];
+    get(providerID: string): { readonly provider: { readonly id: string } } | undefined;
+  };
+}
+
+export interface V2ToolResult {
+  content?: string | ReadonlyArray<{ type: string; text?: string; uri?: string; mime?: string; name?: string }>;
+  output?: unknown;
+  metadata?: Record<string, unknown>;
+}
+
+export interface V2ToolDefinition {
+  readonly name: string;
+  readonly description: string;
+  readonly input: unknown;
+  readonly execute: (input: any, context: any) => Promise<V2ToolResult>;
+  readonly output?: unknown;
+  readonly options?: unknown;
+}
+
+export interface V2ToolEditor {
+  list(): readonly (V2ToolDefinition & { readonly id: string })[];
+  get(id: string): (V2ToolDefinition & { readonly id: string }) | undefined;
+  namespace(namespace: { name: string; description: string }): void;
+  add(tool: V2ToolDefinition): void;
+  update(id: string, update: (tool: V2ToolDefinition) => void): void;
+  remove(id: string): void;
+}
+
+export interface V2CommandInvocation {
+  readonly sessionID: string;
+  readonly prompt: unknown;
+  readonly delivery: "steer" | "queue";
+}
+
+export interface V2CommandDefinition {
+  readonly name: string;
+  readonly description?: string;
+  readonly execute: (input: V2CommandInvocation) => Promise<void>;
+}
+
+export interface V2CommandEditor {
+  add(definition: V2CommandDefinition): void;
+}
+
+export interface V2SessionDomain {
+  hook: (
+    name: string,
+    callback: (event: any) => Promise<void> | void,
+    options?: { providerID?: string },
+  ) => Promise<V2Registration>;
+  /** Admits a non-model message into the session transcript (used to display command output). */
+  synthetic?: (input: { sessionID: string; text: string }) => Promise<unknown>;
+  prompt?: (input: { sessionID: string; text: string; delivery?: "steer" | "queue" }) => Promise<unknown>;
+}
+
 export interface V2Context {
-  readonly app?: any;
-  readonly location?: { directory?: string };
-  readonly session?: {
-    hook: (name: string, callback: (event: any) => Promise<void> | void, options?: any) => Promise<{ dispose: () => Promise<void> }>;
-  };
+  readonly app?: { readonly version?: string };
+  readonly location?: V2LocationInfo;
+  readonly session?: V2SessionDomain;
   readonly model?: {
-    transform: (callback: (editor: any) => void) => Promise<{ dispose: () => Promise<void> }>;
-  };
-  readonly tool?: {
-    transform: (callback: (editor: any) => void) => Promise<{ dispose: () => Promise<void> }>;
-  };
-  readonly command?: {
-    transform: (callback: (editor: any) => void) => Promise<{ dispose: () => Promise<void> }>;
+    transform: (callback: (editor: V2ModelEditor) => void) => Promise<V2Registration>;
+    reload?: () => Promise<void>;
   };
   readonly provider?: {
-    transform: (callback: (editor: any) => void) => Promise<{ dispose: () => Promise<void> }>;
+    transform: (callback: (editor: any) => void) => Promise<V2Registration>;
+    reload?: () => Promise<void>;
+  };
+  readonly tool?: {
+    transform: (callback: (editor: V2ToolEditor) => void) => Promise<V2Registration>;
+    reload?: () => Promise<void>;
+  };
+  readonly command?: {
+    transform: (callback: (editor: V2CommandEditor) => void) => Promise<V2Registration>;
+    reload?: () => Promise<void>;
   };
   readonly integration?: {
-    transform: (callback: (editor: any) => void) => Promise<{ dispose: () => Promise<void> }>;
+    transform: (callback: (editor: V2IntegrationEditor) => void) => Promise<V2Registration>;
+    reload?: () => Promise<void>;
   };
 }
 
@@ -651,64 +816,161 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
     });
   }
 
-  // 2. Model catalog transforms in OpenCode v2
+  // 1.5 Integration registration: exposes the Antigravity Google OAuth method in
+  // OpenCode v2 (`opencode auth login` / TUI connect) and persists every newly
+  // authorized account into the plugin's multi-account pool so rotation picks it up.
+  if (context.integration && typeof context.integration.transform === "function") {
+    await context.integration.transform((editor) => {
+      // Ensure the integration is present and human-readable before adding methods.
+      editor.update("google", (integration) => {
+        if (!integration.name) integration.name = "Google";
+      });
+
+      editor.method.update({
+        integrationID: "google",
+        method: {
+          id: "antigravity-oauth",
+          type: "oauth",
+          label: "OAuth with Google (Antigravity)",
+        },
+        authorize: async () => {
+          const authorization = await authorizeAntigravity("");
+          // Capture state (PKCE verifier + project id) so the code callback is stateless.
+          let capturedState = "";
+          try {
+            capturedState = new URL(authorization.url).searchParams.get("state") ?? "";
+          } catch {
+            capturedState = "";
+          }
+
+          return {
+            mode: "code" as const,
+            url: authorization.url,
+            instructions:
+              "Sign in with Google, approve Antigravity access, then paste the full redirected localhost URL (or just the authorization code).",
+            callback: async (input: string) => {
+              let code = (input ?? "").trim();
+              let state = capturedState;
+              try {
+                const parsed = new URL(code);
+                code = parsed.searchParams.get("code") ?? code;
+                state = parsed.searchParams.get("state") ?? state;
+              } catch {
+                // Raw code pasted without the redirect URL is fine.
+              }
+              if (!code) {
+                throw new Error("Missing authorization code");
+              }
+              if (!state) {
+                throw new Error("Missing OAuth state; paste the full redirect URL instead of only the code.");
+              }
+
+              const result: AntigravityTokenExchangeResult = await exchangeAntigravity(code, state);
+              if (result.type !== "success") {
+                let detail = result.error || "Antigravity token exchange failed";
+                try {
+                  const parsed = JSON.parse(detail);
+                  detail = parsed.error_description || parsed.error || detail;
+                } catch {
+                  // keep raw text
+                }
+                throw new Error(detail);
+              }
+
+              // Merge into the multi-account pool used by the v2 rotation engine.
+              await persistAccountPool([result], false).catch((e) => {
+                log.warn(`Failed to persist Antigravity account: ${e instanceof Error ? e.message : String(e)}`);
+              });
+
+              const parts = parseRefreshParts(result.refresh);
+              return {
+                type: "oauth" as const,
+                methodID: "antigravity-oauth",
+                refresh: formatRefreshParts(parts),
+                access: result.access,
+                expires: result.expires,
+                metadata: {
+                  ...(result.email ? { email: result.email } : {}),
+                  ...(result.projectId ? { projectId: result.projectId } : {}),
+                },
+              };
+            },
+          };
+        },
+        refresh: async (credential: V2OAuthCredential) => {
+          const parts = parseRefreshParts(credential?.refresh ?? "");
+          if (!parts.refreshToken) {
+            throw new Error("Missing refresh token for Antigravity credential");
+          }
+          const mockAuth: OAuthAuthDetails = {
+            type: "oauth",
+            refresh: formatRefreshParts(parts),
+            access: credential?.access ?? "",
+            expires: typeof credential?.expires === "number" ? credential.expires : 0,
+          };
+          const refreshed = await refreshAccessToken(mockAuth, MOCK_CLIENT, ANTIGRAVITY_PROVIDER_ID);
+          if (!refreshed?.access) {
+            throw new Error("Failed to refresh Antigravity access token");
+          }
+          return {
+            ...credential,
+            access: refreshed.access,
+            expires: refreshed.expires ?? credential.expires,
+            refresh: refreshed.refresh ?? credential.refresh,
+          };
+        },
+        label: (credential: V2OAuthCredential) =>
+          typeof credential?.metadata?.email === "string" ? credential.metadata.email : undefined,
+      });
+    });
+  }
+
+  // 2. Model catalog transforms in OpenCode v2.
+  // The v2 ModelEditor exposes only list/get/update/remove/default/provider.
+  // `update(providerID, modelID, draft => ...)` seeds `Model.Info.default`
+  // when the model is absent and adds it under an available provider, which is
+  // exactly what we need: the `google` provider becomes available once the
+  // Antigravity OAuth integration has at least one connection (section 1.5).
   if (context.model && typeof context.model.transform === "function") {
-    await context.model.transform((editor: any) => {
+    await context.model.transform((editor) => {
       for (const [modelId, def] of Object.entries(OPENCODE_MODEL_DEFINITIONS)) {
         try {
-          // If model already exists in editor (e.g. from opencode.json or base provider), update it
-          let updated = false;
-          if (typeof editor.update === "function") {
-            try {
-              editor.update("google", modelId, (draft: any) => {
-                draft.name = def.name;
-                draft.limit = def.limit;
-                draft.status = "active";
-                if (def.variants) {
-                  draft.variants = Object.entries(def.variants).map(([vId, vOpt]) => ({
-                    id: vId,
-                    ...vOpt,
-                  }));
-                }
-                updated = true;
-              });
-            } catch {
-              updated = false;
+          editor.update("google", modelId, (draft) => {
+            draft.name = def.name;
+            draft.enabled = true;
+            draft.status = "active";
+            draft.limit = { context: def.limit.context, output: def.limit.output };
+            draft.capabilities = {
+              tools: true,
+              input: [...def.modalities.input],
+              output: [...def.modalities.output],
+            };
+            if (def.variants) {
+              // v2 Model.Variant = { id, settings?, headers?, body? }. Thinking
+              // config rides in `settings`, which OpenCode forwards as provider
+              // options (the request transform reads providerOptions.google.*).
+              draft.variants = Object.entries(def.variants).map(([vId, vOpt]) => ({
+                id: vId,
+                settings: { ...vOpt } as Record<string, unknown>,
+              }));
             }
-          }
-          // If not updated and editor.add is available, auto-register it directly
-          if (!updated && typeof editor.add === "function") {
-            try {
-              editor.add({
-                providerID: "google",
-                id: modelId,
-                name: def.name,
-                limit: def.limit,
-                status: "active",
-                variants: def.variants
-                  ? Object.entries(def.variants).map(([vId, vOpt]) => ({
-                      id: vId,
-                      ...vOpt,
-                    }))
-                  : undefined,
-              });
-            } catch {
-              // Ignore if provider structure differs
-            }
-          }
-        } catch {
-          // Model might not be pre-seeded; safe to ignore
+          });
+        } catch (error) {
+          log.warn(
+            `[v2] Failed to register model ${modelId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
     });
   }
 
-  // 3. Register tools in OpenCode v2 tool registry
+  // 3. Register tools in OpenCode v2 tool registry.
+  // v2 ToolEditor.add takes a definition whose effective name is derived from
+  // `name` (there is no `id` field); execute returns structured Tool.Result.
   if (context.tool && typeof context.tool.transform === "function") {
-    await context.tool.transform((editor: any) => {
+    await context.tool.transform((editor) => {
       // antigravity_quota tool
       editor.add({
-        id: "antigravity_quota",
         name: "antigravity_quota",
         description: "Check Antigravity quota (5h and weekly windows) across all configured Google accounts",
         input: {
@@ -728,7 +990,6 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
 
       // google_search tool
       editor.add({
-        id: "google_search",
         name: "google_search",
         description: "Search the web using Google Search and analyze URLs",
         input: {
@@ -754,7 +1015,6 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
 
       // antigravity_stats tool
       editor.add({
-        id: "antigravity_stats",
         name: "antigravity_stats",
         description: "View real-time engine statistics: request counts, account health scores, rate limit tracking, and signature cache performance",
         input: {
@@ -775,17 +1035,36 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
     });
   }
 
-  // 4. Register slash commands in OpenCode v2
+  // 4. Register slash commands in OpenCode v2.
+  // v2 CommandDefinition.execute receives the owning session and must deliver
+  // its own output (a returned string is ignored). We admit a synthetic message
+  // so the report renders in the transcript without triggering a model turn.
   if (context.command && typeof context.command.transform === "function") {
-    await context.command.transform((editor: any) => {
+    const deliver = async (
+      sessionID: string | undefined,
+      text: string,
+      delivery: "steer" | "queue",
+    ): Promise<void> => {
+      if (!sessionID || !context.session || typeof context.session.synthetic !== "function") {
+        log.info(`[v2 command] ${text}`);
+        return;
+      }
+      try {
+        await context.session.synthetic({ sessionID, text });
+      } catch (error) {
+        log.warn(`[v2 command] Failed to deliver output: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
+
+    await context.command.transform((editor) => {
       editor.add({
         name: "antigravity-quota",
         description: "View current Antigravity API quotas across accounts",
-        execute: async () => {
+        execute: async ({ sessionID, delivery }) => {
           try {
-            return await getQuotaReport();
+            await deliver(sessionID, await getQuotaReport(), delivery);
           } catch (error) {
-            return `Error: ${error instanceof Error ? error.message : String(error)}`;
+            await deliver(sessionID, `Error: ${error instanceof Error ? error.message : String(error)}`, delivery);
           }
         },
       });
@@ -793,13 +1072,13 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
       editor.add({
         name: "antigravity-stats",
         description: "View real-time engine statistics (request counts, health scores, and signature cache)",
-        execute: async () => {
+        execute: async ({ sessionID, delivery }) => {
           try {
             const storage = await loadAccounts();
             const activeAcc = storage?.accounts?.[storage.activeIndex]?.email;
-            return EngineStatsManager.getInstance().formatStatsReport(activeAcc);
+            await deliver(sessionID, EngineStatsManager.getInstance().formatStatsReport(activeAcc), delivery);
           } catch (error) {
-            return `Error: ${error instanceof Error ? error.message : String(error)}`;
+            await deliver(sessionID, `Error: ${error instanceof Error ? error.message : String(error)}`, delivery);
           }
         },
       });
@@ -807,21 +1086,22 @@ export async function setupV2(context: V2Context): Promise<CleanupFunction | voi
       editor.add({
         name: "antigravity-setup",
         description: "Zero-config setup: auto-configures opencode.json with Antigravity models, whitelists, and commands",
-        execute: async () => {
+        execute: async ({ sessionID, delivery }) => {
           try {
             const res = await updateOpencodeConfig({ writeLegacyProviderModels: false });
             if (res.success) {
               const storage = await loadAccounts();
               const count = storage?.accounts?.length ?? 0;
-              const accountList = count > 0 
+              const accountList = count > 0
                 ? storage!.accounts.map((a, i) => `  ${i + 1}. ${a.email || "Account " + (i + 1)}`).join("\n")
                 : "  (Sin cuentas configuradas todavía - ejecuta `opencode auth login` para agregar una)";
-              return `Antigravity configurado con éxito en: ${res.configPath}\n\nCuentas activas (${count}):\n${accountList}\n\nModelos disponibles:\n• google/antigravity-gemini-3.8-flash (default)\n• google/antigravity-gemini-3.7-flash\n• google/antigravity-gemini-3.6-flash\n• google/antigravity-gemini-3.1-pro\n• google/antigravity-claude-sonnet-4-6\n• google/antigravity-claude-opus-4-6-thinking\n• google/antigravity-gpt-oss-120b-medium`;
+              const report = `Antigravity configurado con éxito en: ${res.configPath}\n\nCuentas activas (${count}):\n${accountList}\n\nModelos disponibles:\n• google/antigravity-gemini-3.8-flash (default)\n• google/antigravity-gemini-3.7-flash\n• google/antigravity-gemini-3.6-flash\n• google/antigravity-gemini-3.1-pro\n• google/antigravity-claude-sonnet-4-6\n• google/antigravity-claude-opus-4-6-thinking\n• google/antigravity-gpt-oss-120b-medium`;
+              await deliver(sessionID, report, delivery);
             } else {
-              return `Error al configurar: ${res.error}`;
+              await deliver(sessionID, `Error al configurar: ${res.error}`, delivery);
             }
           } catch (error) {
-            return `Error: ${error instanceof Error ? error.message : String(error)}`;
+            await deliver(sessionID, `Error: ${error instanceof Error ? error.message : String(error)}`, delivery);
           }
         },
       });

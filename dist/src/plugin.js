@@ -611,7 +611,7 @@ function clampInt(value, min, max) {
     }
     return Math.min(max, Math.max(min, Math.floor(value)));
 }
-async function persistAccountPool(results, replaceAll = false) {
+export async function persistAccountPool(results, replaceAll = false) {
     if (results.length === 0) {
         return;
     }

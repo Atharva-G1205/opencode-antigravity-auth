@@ -81,7 +81,7 @@ This plugin implements a polymorphic dual-compatibility entrypoint in `index.ts`
     setup: async (context: V2Context) => cleanup
   }
   ```
-  Registers native tools (`context.tool.transform`) and commands (`context.command.transform`) while sharing the unified account pool and config.
+  Registers native tools (`context.tool.transform`), commands (`context.command.transform`), models (`context.model.transform`) and the **Google Antigravity OAuth integration** (`context.integration.transform`), while sharing the unified account pool and config. This makes `opencode auth login` offer `OAuth with Google (Antigravity)` and appends every newly authorized account to the multi-account rotation pool.
 
 No configuration changes are required when transitioning between OpenCode v1 and v2.
 
