@@ -48,6 +48,26 @@ export const OPENCODE_MODEL_DEFINITIONS: OpencodeModelDefinitions = {
       high: { thinkingLevel: "high" },
     },
   },
+  "antigravity-gemini-3.8-flash-medium": {
+    name: "Gemini 3.8 Flash Medium (Antigravity)",
+    limit: { context: 1048576, output: 65536 },
+    modalities: DEFAULT_MODALITIES,
+    variants: {
+      low: { thinkingLevel: "low" },
+      medium: { thinkingLevel: "medium" },
+      high: { thinkingLevel: "high" },
+    },
+  },
+  "antigravity-gemini-3.8-flash-high": {
+    name: "Gemini 3.8 Flash High (Antigravity)",
+    limit: { context: 1048576, output: 65536 },
+    modalities: DEFAULT_MODALITIES,
+    variants: {
+      low: { thinkingLevel: "low" },
+      medium: { thinkingLevel: "medium" },
+      high: { thinkingLevel: "high" },
+    },
+  },
   "antigravity-gemini-3.7-flash": {
     name: "Gemini 3.7 Flash (Antigravity)",
     limit: { context: 1048576, output: 65536 },
@@ -70,6 +90,15 @@ export const OPENCODE_MODEL_DEFINITIONS: OpencodeModelDefinitions = {
   },
   "antigravity-gemini-3.1-pro": {
     name: "Gemini 3.1 Pro (Antigravity)",
+    limit: { context: 1048576, output: 65535 },
+    modalities: DEFAULT_MODALITIES,
+    variants: {
+      low: { thinkingLevel: "low" },
+      high: { thinkingLevel: "high" },
+    },
+  },
+  "antigravity-gemini-3.1-pro-high": {
+    name: "Gemini 3.1 Pro High (Antigravity)",
     limit: { context: 1048576, output: 65535 },
     modalities: DEFAULT_MODALITIES,
     variants: {
@@ -114,4 +143,3 @@ export const OPENCODE_MODEL_DEFINITIONS: OpencodeModelDefinitions = {
  * Prevents OpenCode from showing 18+ unauthenticated built-in Google models.
  */
 export const OPENCODE_WHITELIST_MODELS: string[] = Object.keys(OPENCODE_MODEL_DEFINITIONS);
-
