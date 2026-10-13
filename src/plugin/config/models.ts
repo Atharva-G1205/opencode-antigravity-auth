@@ -41,32 +41,17 @@ export const OPENCODE_MODEL_DEFINITIONS: OpencodeModelDefinitions = {
   "antigravity-gemini-3.8-flash": {
     name: "Gemini 3.8 Flash (Antigravity)",
     limit: { context: 1048576, output: 65536 },
-    modalities: DEFAULT_MODALITIES,
-    variants: {
-      low: { thinkingLevel: "low" },
-      medium: { thinkingLevel: "medium" },
-      high: { thinkingLevel: "high" },
-    },
+    modalities: DEFAULT_MODALITIES
   },
   "antigravity-gemini-3.8-flash-medium": {
     name: "Gemini 3.8 Flash Medium (Antigravity)",
     limit: { context: 1048576, output: 65536 },
-    modalities: DEFAULT_MODALITIES,
-    variants: {
-      low: { thinkingLevel: "low" },
-      medium: { thinkingLevel: "medium" },
-      high: { thinkingLevel: "high" },
-    },
+    modalities: DEFAULT_MODALITIES
   },
   "antigravity-gemini-3.8-flash-high": {
     name: "Gemini 3.8 Flash High (Antigravity)",
     limit: { context: 1048576, output: 65536 },
-    modalities: DEFAULT_MODALITIES,
-    variants: {
-      low: { thinkingLevel: "low" },
-      medium: { thinkingLevel: "medium" },
-      high: { thinkingLevel: "high" },
-    },
+    modalities: DEFAULT_MODALITIES
   },
   "antigravity-gemini-3.7-flash": {
     name: "Gemini 3.7 Flash (Antigravity)",
@@ -91,20 +76,12 @@ export const OPENCODE_MODEL_DEFINITIONS: OpencodeModelDefinitions = {
   "antigravity-gemini-3.1-pro": {
     name: "Gemini 3.1 Pro (Antigravity)",
     limit: { context: 1048576, output: 65535 },
-    modalities: DEFAULT_MODALITIES,
-    variants: {
-      low: { thinkingLevel: "low" },
-      high: { thinkingLevel: "high" },
-    },
+    modalities: DEFAULT_MODALITIES
   },
   "antigravity-gemini-3.1-pro-high": {
     name: "Gemini 3.1 Pro High (Antigravity)",
     limit: { context: 1048576, output: 65535 },
-    modalities: DEFAULT_MODALITIES,
-    variants: {
-      low: { thinkingLevel: "low" },
-      high: { thinkingLevel: "high" },
-    },
+    modalities: DEFAULT_MODALITIES
   },
   "antigravity-claude-sonnet-4-6": {
     name: "Claude Sonnet 4.6 (Antigravity)",
