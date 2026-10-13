@@ -72,6 +72,11 @@ export declare function resolveAntigravityGemini37FlashBackendModel(model: strin
  */
 export declare function resolveAntigravityGemini38FlashBackendModel(model: string, thinkingLevel?: string): string | undefined;
 /**
+ * Resolves Gemini 3.1 Pro to backend model ID.
+ * Maps 'high' to the specific gemini-pro-agent endpoint as per upstream changes.
+ */
+export declare function resolveAntigravityGemini31ProBackendModel(model: string, thinkingLevel?: string): string | undefined;
+/**
  * Resolves a model name with optional tier suffix and quota prefix to its actual API model name
  * and corresponding thinking configuration.
  *
