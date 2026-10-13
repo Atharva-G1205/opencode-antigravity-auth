@@ -667,6 +667,44 @@ it("removes x-api-key header", () => {
       expect(result.streaming).toBe(false);
     });
 
+    it("routes gemini-3.1-pro-high to gemini-pro-agent (unwrapped)", () => {
+      const unwrappedBody = {
+        contents: [{ parts: [{ text: "Hello" }] }],
+      };
+      const result = prepareAntigravityRequest(
+        "https://generativelanguage.googleapis.com/v1beta/models/antigravity-gemini-3.1-pro-high:streamGenerateContent",
+        { method: "POST", body: JSON.stringify(unwrappedBody) },
+        mockAccessToken,
+        mockProjectId
+      );
+
+      expect(result.effectiveModel).toBe("gemini-pro-agent");
+      const wrapped = JSON.parse(result.init.body as string);
+      expect(wrapped.model).toBe("gemini-pro-agent");
+    });
+
+    it("routes gemini-3.1-pro with thinkingLevel high to gemini-pro-agent (wrapped)", () => {
+      const wrappedBody = {
+        project: "my-project",
+        request: {
+          contents: [{ parts: [{ text: "Hello" }] }],
+          generationConfig: {
+            thinkingConfig: { includeThoughts: true, thinkingLevel: "high" },
+          },
+        },
+      };
+      const result = prepareAntigravityRequest(
+        "https://generativelanguage.googleapis.com/v1beta/models/antigravity-gemini-3.1-pro:streamGenerateContent",
+        { method: "POST", body: JSON.stringify(wrappedBody) },
+        mockAccessToken,
+        mockProjectId
+      );
+
+      expect(result.effectiveModel).toBe("gemini-pro-agent");
+      const wrapped = JSON.parse(result.init.body as string);
+      expect(wrapped.model).toBe("gemini-pro-agent");
+    });
+
     it("handles unwrapped body format", () => {
       const unwrappedBody = {
         contents: [{ parts: [{ text: "Hello" }] }]

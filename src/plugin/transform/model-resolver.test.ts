@@ -7,6 +7,7 @@ import {
   resolveAntigravityGemini36FlashBackendModel,
   resolveAntigravityGemini37FlashBackendModel,
   resolveAntigravityGemini38FlashBackendModel,
+  resolveAntigravityGemini31ProBackendModel,
 } from "./model-resolver";
 
 describe("resolveModelWithTier", () => {
@@ -361,5 +362,22 @@ describe("resolveAntigravityGemini36FlashBackendModel", () => {
 
   it("returns undefined for non-matching model", () => {
     expect(resolveAntigravityGemini36FlashBackendModel("gemini-3.5-flash-low")).toBeUndefined();
+  });
+});
+
+describe("resolveAntigravityGemini31ProBackendModel", () => {
+  it("reads the tier from the model name when no explicit thinkingLevel is given", () => {
+    expect(resolveAntigravityGemini31ProBackendModel("gemini-3.1-pro-high")).toBe("gemini-pro-agent");
+    expect(resolveAntigravityGemini31ProBackendModel("antigravity-gemini-3.1-pro-high")).toBe("gemini-pro-agent");
+  });
+
+  it("keeps argument precedence and the low default", () => {
+    expect(resolveAntigravityGemini31ProBackendModel("gemini-3.1-pro", "high")).toBe("gemini-pro-agent");
+    expect(resolveAntigravityGemini31ProBackendModel("gemini-3.1-pro")).toBe("gemini-3.1-pro-low");
+    expect(resolveAntigravityGemini31ProBackendModel("gemini-3.1-pro-medium")).toBe("gemini-3.1-pro-low");
+  });
+
+  it("returns undefined for non-matching model", () => {
+    expect(resolveAntigravityGemini31ProBackendModel("gemini-3-flash")).toBeUndefined();
   });
 });

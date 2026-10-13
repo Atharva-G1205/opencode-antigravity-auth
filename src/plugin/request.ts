@@ -67,6 +67,7 @@ import {
   resolveAntigravityGemini36FlashBackendModel,
   resolveAntigravityGemini37FlashBackendModel,
   resolveAntigravityGemini38FlashBackendModel,
+  resolveAntigravityGemini31ProBackendModel,
   isClaudeModel,
   isClaudeThinkingModel,
   CLAUDE_THINKING_MAX_OUTPUT_TOKENS,
@@ -881,6 +882,35 @@ export function prepareAntigravityRequest(
       const parsedBody = JSON.parse(baseInit.body) as Record<string, unknown>;
       const isWrapped = typeof parsedBody.project === "string" && "request" in parsedBody;
 
+      // Extract variant config early so it applies to backend model selection (e.g. for wrapped chat requests)
+      let payloadForVariant = parsedBody;
+      if (isWrapped) {
+        payloadForVariant = (parsedBody.request as Record<string, unknown>) || parsedBody;
+        if (payloadForVariant.request && typeof payloadForVariant.request === "object") {
+          payloadForVariant = payloadForVariant.request as Record<string, unknown>;
+        }
+      }
+
+      const variantConfig = extractVariantThinkingConfig(
+        payloadForVariant.providerOptions as Record<string, unknown> | undefined,
+        payloadForVariant.generationConfig as Record<string, unknown> | undefined
+      );
+
+      const isGemini3 = effectiveModel.toLowerCase().includes("gemini-3");
+
+      if (variantConfig?.thinkingLevel && isGemini3) {
+        tierThinkingLevel = variantConfig.thinkingLevel;
+        tierThinkingBudget = undefined;
+      } else if (variantConfig?.thinkingBudget) {
+        if (isGemini3) {
+          tierThinkingLevel = variantConfig.thinkingBudget <= 8192 ? "low" : variantConfig.thinkingBudget <= 16384 ? "medium" : "high";
+          tierThinkingBudget = undefined;
+        } else {
+          tierThinkingBudget = variantConfig.thinkingBudget;
+          tierThinkingLevel = undefined;
+        }
+      }
+
       if (isWrapped) {
         const wrappedBody = {
           ...parsedBody,
@@ -889,9 +919,16 @@ export function prepareAntigravityRequest(
 
         if (headerStyle === "antigravity") {
           const gemini38FlashBackendModel = resolveAntigravityGemini38FlashBackendModel(rawModel, tierThinkingLevel);
+          const gemini31ProBackendModel = gemini38FlashBackendModel
+            ? undefined
+            : resolveAntigravityGemini31ProBackendModel(rawModel, tierThinkingLevel);
+
           if (gemini38FlashBackendModel) {
             effectiveModel = gemini38FlashBackendModel;
             wrappedBody.model = gemini38FlashBackendModel;
+          } else if (gemini31ProBackendModel) {
+            effectiveModel = gemini31ProBackendModel;
+            wrappedBody.model = gemini31ProBackendModel;
           } else {
             const gemini37FlashBackendModel = resolveAntigravityGemini37FlashBackendModel(rawModel, tierThinkingLevel);
             if (gemini37FlashBackendModel) {
@@ -1012,8 +1049,14 @@ export function prepareAntigravityRequest(
 
         if (headerStyle === "antigravity") {
           const gemini38FlashBackendModel = resolveAntigravityGemini38FlashBackendModel(rawModel, tierThinkingLevel);
+          const gemini31ProBackendModel = gemini38FlashBackendModel
+            ? undefined
+            : resolveAntigravityGemini31ProBackendModel(rawModel, tierThinkingLevel);
+
           if (gemini38FlashBackendModel) {
             effectiveModel = gemini38FlashBackendModel;
+          } else if (gemini31ProBackendModel) {
+            effectiveModel = gemini31ProBackendModel;
           } else {
             const gemini37FlashBackendModel = resolveAntigravityGemini37FlashBackendModel(rawModel, tierThinkingLevel);
             if (gemini37FlashBackendModel) {

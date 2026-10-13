@@ -18,9 +18,12 @@ describe("OPENCODE_MODEL_DEFINITIONS", () => {
       "antigravity-claude-opus-4-6-thinking",
       "antigravity-claude-sonnet-4-6",
       "antigravity-gemini-3.1-pro",
+      "antigravity-gemini-3.1-pro-high",
       "antigravity-gemini-3.6-flash",
       "antigravity-gemini-3.7-flash",
       "antigravity-gemini-3.8-flash",
+      "antigravity-gemini-3.8-flash-high",
+      "antigravity-gemini-3.8-flash-medium",
       "antigravity-gpt-oss-120b-medium",
     ]);
   });
